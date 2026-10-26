@@ -17,6 +17,8 @@ A shell + plain-HTML/JS replacement for the **LG webOS 4.x Home screen**, plus a
 | Replacing LG's native Home with the web launcher ("stand-in" method) | `tv/home-on.sh`, `home-off.sh`, `home-standin.sh` |
 | Persistence, recovery, undo | `tv/boot.sh`, `tv/zz-debloat`, `tv/revert.sh`, `revert.sh` |
 | Measuring and testing | `bench.sh`, `tools/*` |
+| App updates (auto) and the firmware-update lock | `tv/appupdate.sh`, `do_updates` in `tv/debloat.sh` |
+| Installing on another TV (rooted) / without root | `install.sh`, `tools/diagnose.sh`, `tv.conf`; `rootless/README.md`, `tools/export-blocklist.js`, `tools/make-ipk.js`, `tv/launcher/rootless.js` |
 
 Results on the dev TV: cold Home start 7.5 s -> 1.1 s, Home process 150 MB -> 54 MB, swap 428 -> 253 MB, ad impressions -> 0 (details: `README.md`, `results/`).
 
@@ -42,7 +44,10 @@ dock = Netflix/YouTube/Hulu/Disney+, weather in Fahrenheit.
 ```
 AGENTS.md  CLAUDE.md  README.md  CHANGES.md  NOTICE.md  LICENSE  UPSTREAM-DRAFT.md
 bench.sh              performance benchmark; runs ON the TV via ./tv.sh -s <label> <reps> < bench.sh
-tv.sh                 ssh helper: ./tv.sh 'cmd'   or   ./tv.sh -s < script.sh     (root@10.0.0.63, key auth)
+tv.sh                 ssh helper: ./tv.sh 'cmd'   or   ./tv.sh -s < script.sh     (the TV comes from tv.conf: TV_IP=..., see tv-env.sh / tv.conf.example; git-ignored)
+install.sh            guided installer for a rooted TV: ./install.sh <ip> [--check] [--yes]   (stages, each with its undo; --check changes nothing)
+docs/                 AUDIT.md (measured findings, risks, ranked backlog) and images/ (README pictures, made with PV_PUBLIC=1 node tools/preview.js)
+rootless/             guide for TVs that cannot be rooted
 revert.sh             PC wrapper that runs the TV's own revert.sh over ssh
 tv-inspect*.sh        the original read-only inspection scripts
 tv/                   everything deployed to /media/developer/tv-debloat on the TV
@@ -58,7 +63,8 @@ tv/                   everything deployed to /media/developer/tv-debloat on the 
   backchain.sh        start|stop: Back from an app returns to the previous app (keywatch.py reads KEY_BACK from /dev/input/event* of the LGE remotes; history from lastapp.sh)
   keywatch.py         read-only evdev Back-key reporter (Python 2.7; struct input_event is 16 bytes). Test without the remote: write a 16-byte KEY_BACK (code 158) down+up event pair to /dev/input/event1
   pointer.sh          off|on|apply|watch|stop: EXPERIMENTAL Magic Remote pointer switch (wake-on-shake + motion sensor off), re-applied by a watcher when the remote reconnects
-  settings-open.sh    open|toggle|close our Settings overlay (a second WAM page, settings.html, window type overlay)
+  appupdate.sh        json|mode|check|apply|pending: option.appUpdateMode=auto, waiting updates (appUpdateService/statusAll), "check now" via an activitymanager activity
+  settings-open.sh    open|launch|toggle|close our Settings overlay (launch = no is-it-open check, used by the hook) (a second WAM page, settings.html, window type overlay)
   home-on.sh          start API, bind-mount the stand-in over LG's Home, wait <=30 s for the launcher to report ready (else fall back), start the watchdog
   home-off.sh         restore LG's Home (kills stand-in first, then umount, then relaunch)
   home-standin.sh     the program SAM thinks is LG's Home: asks WAM to open the launcher, registers with SAM, handles relaunch/close
@@ -71,6 +77,9 @@ tools/                PC-side tools (Node 20+; run `npm install` in tools/ once)
   lg-settings-test.sh sets every LG key our Settings uses back to its own value on the TV: proves the TV accepts it
   bench-quick.sh      3-minute Home / YouTube / Netflix launch benchmark
   pointer-experiment.sh  dead end, kept as a record: mrcu activateMotionSensor is accepted but does not hide the pointer
+  diagnose.sh         READ-ONLY compatibility report (webOS, root, init system, tools, Home program, services, LG keys) with OK/WARN/NO verdicts
+  keys-test.sh       Settings key + Back chain end to end without the remote (injects evdev KEY_BACK and the lginput2 log line); opens HDMI 2/Netflix
+  export-blocklist.js / make-ipk.js   the rootless pack (block lists for a router; experimental developer-mode app)
   check.sh            health check after any change (Settings, Home, Netflix, HDMI 1 all open) - runs on the TV
   safety-test.sh      proves the recovery paths - runs on the TV
   quick.sh            10 s memory/CPU snapshot - runs on the TV
@@ -128,6 +137,16 @@ Facts verified on webOS 4.5 (re-verify on other versions):
 - **Back on Home**: Home gets keyCode 461 like the Settings page; `goBack()` calls `/api/back`, which relaunches `/tmp/lastapp` (kept by `lastapp.sh` from SAM's foreground subscription). Verified with an injected key only.
 - Python 2.7 on the TV has `json`: handy for parsing luna replies in scripts.
 
+### Round 5 facts (verified on the dev TV, webOS 4.5)
+
+- **LG's gear panel** is QML inside surface-manager (`/usr/lib/qt5/qml/QuickSettings/`), preloaded at boot. The gear key logs `lginput2 NL_BUTTON_CLICK ... "button_type":"KEY_SETTINGS"` about 0.5 s before the panel shows; `KeyFilters/appLaunch.js` calls `systemUIManager /launch`. Close it with `luna://com.webos.service.systemUIManager/closeByAppId {"appId":"com.webos.app.quicksettings"}` (`surfacemanager/closeByAppId` says "not supported"; `{"id":...}` is ignored). Its items: picture mode, aspect ratio, sound mode (+effect), sound out (+device), sleep timer, network, all settings.
+- **App updates**: all user apps have `checkUpdateOnLaunch:true` (the prompt). `option.appUpdateMode=auto` = LG's own background update. `com.webos.appUpdateService/statusAll` lists apps with `status:"Y"`; `check` answers only to `com.webos.service.activitymanager` and needs `$activity.activityId`: create an activity (`luna://com.webos.service.activitymanager/create` with a `callback` to `appUpdateService/check`). `luna-send -a <id>` cannot fake the caller. An update actually installing was NOT observed.
+- **Firmware update lock**: `com.webos.service.update` is `/usr/sbin/update`; a bind-mounted no-op over it means the service never registers (`diagnose.sh` shows it as not-seen). `debloat.sh status updates` must say `BLOCKED (4/4)`. Never write `automaticUpdate`/`appUpdateMode`/`softwareUpdate` through `/api/lg/set` (refused on purpose); app mode goes through `/api/appupdates/mode`.
+- **Remote input**: keys, pointer and wheel arrive via uinput devices made by `lginput2` (`LGE RCU` = event1 carries KEY_BACK 158; `LGE M-RCU - Builtin [n]` carry arrows/OK/digits AND the pointer axes, so they cannot be grabbed). Writing a 16-byte `input_event` (`  x8, type 1, code 158, value 1`) to `/dev/input/event1` injects Back; `keywatch.py` reads it. An injected Back does not reliably reach the Home page: test Back-on-Home through `/api/back`. The Home page gets keyCode 461 from a real remote (unverified by us).
+- **Pointer**: `mrcu` calls only work while the remote is awake and reset on reconnect; `/cursor/setPosition` (park in a corner), `setWakeUpCondition shake`, `activateMotionSensor false` are applied by `pointer.sh`; effect UNVERIFIED. The scroll wheel wakes the arrow.
+- `ls-monitor -l` lists luna services; `strings` on a single binary shows method names; `getForegroundAppInfo` does not list overlays; the load average (about 31) is 29 kernel threads in D state, not load.
+- **Screenshots for the README** must come from `PV_PUBLIC=1 node tools/preview.js <name> "<query>"` (no photos, generic place/IP, fresh profile); look at every image before committing it.
+
 ## 6. Safety net (and how to prove it)
 
 | Layer | What | Test |
@@ -139,7 +158,7 @@ Facts verified on webOS 4.5 (re-verify on other versions):
 | API watchdog | `tcpsvd` restarted if it dies; 3 failures -> LG Home | `tools/safety-test.sh` (C) |
 | Telnet (`telnet <tv>`, no password) and Homebrew failsafe | independent way in if SSH ever breaks | keep enabled until the owner decides |
 
-After **every** change run `tools/check.sh` on the TV and look for `RESULT: ALL CHECKS PASSED`. Add the change and its undo to `CHANGES.md`.
+After **every** change run `tools/check.sh` on the TV and look for `RESULT: ALL CHECKS PASSED` (and `tools/keys-test.sh` when you touch the Settings key, Back or the hooks). Add the change and its undo to `CHANGES.md`. `revert.sh` treats ANY argument as "go on": never call it with `--help`.
 
 ## 7. Day-to-day workflow
 
@@ -210,7 +229,7 @@ Write the findings to `tv-report/` (git-ignored) and a plan to `PLAN.md`-style n
 
 ## 9. Porting to a TV you can NOT root (what is realistically possible)
 
-**Status: design notes only - none of this is implemented or tested here.** The full project depends on root (bind mounts, `initctl`, `/etc/hosts`, replacing the native Home, a
+**Status: a rootless pack exists (`rootless/README.md`, `tools/export-blocklist.js`, `tools/make-ipk.js`, `tv/launcher/rootless.js`) but the developer-mode app is UNTESTED on a real TV; the DNS block lists work anywhere.** Original notes: The full project depends on root (bind mounts, `initctl`, `/etc/hosts`, replacing the native Home, a
 listening server). Without root you cannot replace Home or stop services. What remains:
 
 1. **LG's own toggles, by hand** (no root): Settings -> General -> About This TV -> User Agreements (Viewing Information, Interest-Based Advertising off), Live Plus off,
@@ -242,7 +261,8 @@ physical-remote Back/Home key behaviour (injected keys only).
 ## 12. Pre-push privacy audit (run every time)
 
 ```
-git ls-files | grep -i -E "\.(jpe?g|png|heic)$|photos|tv-report|runner|shots|scratch"     # must print nothing (tools/prep-photos.js is fine)
+git ls-files | grep -i -E "\.(jpe?g|png|heic)$|photos|tv-report|runner|shots|scratch" | grep -v -E "^docs/images/[a-z-]+\.png$|^tools/prep-photos.js$"     # must print nothing
+# every file in docs/images/ must have been made with PV_PUBLIC=1 and OPENED AND LOOKED AT before commit: no photo, no real city, no real IP, no names
 git grep -n -i -E "advertising|IFA|serial|passw|systemPin|[0-9a-f]{2}(:[0-9a-f]{2}){5}|<your public IP>" -- . ':!AGENTS.md'      # review hits
 git log --all --stat --format=%h | grep -i -E "\.(jpe?g|png)$|tv-report"                                              # must print nothing: history must be clean too
 ```

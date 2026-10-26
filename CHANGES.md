@@ -133,3 +133,17 @@ Facts: LG's quick panel is not a process; it lives in surface-manager (QML), pre
 | System (firmware) updates: fifth layer | `debloat.sh updates` now also bind-mounts a do-nothing stub over `/usr/sbin/update` (the `com.webos.service.update` program), so nothing can start it; status shows `BLOCKED (4/4)`; the API already refuses `automaticUpdate`/`appUpdateMode`/`softwareUpdate` keys; the 5-min sweep re-applies all of it | `debloat.sh undo updates` (revert.sh does it) |
 
 Verified: mode switch, check request accepted, API routes, stub mounted, `tools/check.sh` ALL CHECKS PASSED. NOT verified: that an update actually installs. On the dev TV two apps (Peacock 6.4.202, Prime Video 4.5.25) stay in `statusAll` with status `Y` and unchanged versions 90 s after a check in auto mode, with and without our hosts block, so either those are not real updates (the meaning of `Y` is unknown) or the store does not deliver to this TV. Facts: all 13 user apps carry `checkUpdateOnLaunch:true` (the source of the prompt); `appUpdateService/check` needs `$activity.activityId`; `luna-send -a` cannot fake the caller id.
+
+## Round 6 (2026-10-26): portability, rootless pack, audit, README
+
+| What | Where / command | Undo |
+|---|---|---|
+| TV address in one git-ignored file | `tv.conf` (`TV_IP`, `TV_USER`), read by `tv-env.sh`; `tv.sh`, `revert.sh`, `tools/deploy.sh`, `tools/cdp.js`, `tools/preview.js` no longer hard-code an address | PC-side only |
+| Guided installer + read-only compatibility report | `install.sh <ip> [--check] [--yes]`, `tools/diagnose.sh` | PC-side; each install stage prints its own undo |
+| Rootless pack | `rootless/README.md`, `tools/export-blocklist.js` (dist/ lists for Pi-hole/AdGuard/hosts), `tools/make-ipk.js` + `tv/launcher/rootless.js` (experimental dev-mode app; one hook line in `xhr()` in `app.js`, inactive on the rooted TV) | PC-side only |
+| LG's unused stock Home no longer pre-loaded | `debloat.sh` `PRELOAD_OFF` + `com.webos.app.home` (runtime preload policy; original flag saved in `state/preload.orig`) | `debloat.sh undo preload` |
+| Key test without the remote | `tools/keys-test.sh` (injects evdev KEY_BACK and the KEY_SETTINGS log line): 7/7 passed | - |
+| Audit and README | `docs/AUDIT.md` (measurements, findings, 17-item backlog), `README.md` (summary, pictures, features, performance, install), `docs/images/` (10 pictures made with `PV_PUBLIC=1`, each looked at before committing) | - |
+| Agent rules | `AGENTS.md` / `CLAUDE.md`: commit incrementally with a detailed log, push once at the end of a task | - |
+
+TV-side runtime effect of this round: only the preload policy for `com.webos.app.home`. `tools/check.sh`: ALL CHECKS PASSED after it.
