@@ -130,6 +130,8 @@ case "$P" in
   /api/appupdates) hdr "200 OK"; timeout -t 25 sh "$D/appupdate.sh" json </dev/null 2>/dev/null || echo '{"mode":"","pending":[],"apps":[]}';;
   /api/appupdates/mode) case "$(qget v)" in auto|manual) timeout -t 15 sh "$D/appupdate.sh" mode "$(qget v)" </dev/null >/dev/null 2>&1;; esac
                 hdr "200 OK"; printf '{"mode":"%s"}' "$(timeout -t 10 sh "$D/appupdate.sh" mode </dev/null 2>/dev/null)";;
+  /api/appupdates/conf) case "$(qget k)" in startup|every) timeout -t 10 sh "$D/appupdate.sh" conf "$(qget k)" "$(qget v)" </dev/null >/dev/null 2>&1;; esac
+                hdr "200 OK"; timeout -t 10 sh "$D/appupdate.sh" conf </dev/null 2>/dev/null | sed 's/startup=\([a-z]*\) every=\([0-9]*\)/{"startup":"\1","every":\2}/';;
   /api/appupdates/check) m=$(timeout -t 25 sh "$D/appupdate.sh" check </dev/null 2>/dev/null | head -1 | tr -d '"'); hdr "200 OK"; printf '{"msg":"%s"}' "$m";;
   /api/backlight) case "$(qget v)" in
                   dim) pct=$(qget pct); timeout -t 15 sh "$D/backlight.sh" dim "$pct" </dev/null >/dev/null 2>&1;;

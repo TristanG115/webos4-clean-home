@@ -156,3 +156,11 @@ TV-side runtime effect of this round: only the preload policy for `com.webos.app
 | Five independent ways back to full backlight | page on wake (`blRestore`), `lastapp.sh` when anything but Home comes to the front, `boot.sh` at boot, the watchdog sweep (marker `/tmp/saver-on` older than 3 min), `home-off.sh`/`revert.sh` | - |
 
 Verified on the TV: dim 100 -> 40 -> restore; sweep restores when the marker is gone and leaves a fresh dim alone; floor (1 % -> 10 % of 100); switching to HDMI 2 restores Home's own context (LG keeps backlight per input: the first version restored into the wrong context, fixed by storing the dimension). Note: the dim is NOT visible to me; whether it looks right is for you to judge.
+
+## Round 7b: app updates in the background, controlled from Settings
+
+| What | Where / command | Undo |
+|---|---|---|
+| Quiet background check on start and then every N hours | `appupdate.sh due` (cheap, no luna call) asked by the launcher watchdog every 20 s: once per boot 30 s after the launcher is ready (`startup=on`), then every `every` hours (default 6, 0 = never); manual mode never checks. Settings -> App updates: **Update apps automatically**, **Check when the TV starts**, **Then check every**, **Check for app updates now**. State `state/appupdate.conf`, API `/api/appupdates/conf?k=startup|every&v=` | Settings, or edit `state/appupdate.conf` |
+
+Verified: conf get/set through the API, `due` for boot-like, just-checked, 4 h-ago/3 h and 6 h cases. The list label changed from "Updates waiting" to "Flagged by LG": Peacock and Prime Video have been flagged (`status:"Y"`) for over four hours with unchanged versions, so that list is not proof that an update exists.
