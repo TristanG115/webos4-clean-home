@@ -141,7 +141,7 @@ function geoResolve(cb){
   if (c && c.key === key && (key !== 'auto' || Date.now() - c.at < 86400000)) return cb(c);
   function done(l){ l.key = key; l.at = Date.now(); lsSet('loc', l); cb(l); }
   function fallback(){ cb((c && c.key === key ? c : null) || {lat: CFG.fallbackPlace.lat, lon: CFG.fallbackPlace.lon, place: CFG.fallbackPlace.place, key: key, at: 0}); }
-  if (MOCK) return cb({lat: 40.42, lon: -86.9, place: 'West Lafayette', key: key});
+  if (MOCK) return cb({lat: CFG.fallbackPlace.lat, lon: CFG.fallbackPlace.lon, place: CFG.fallbackPlace.place, key: key});
   if (w.mode === 'zip') {
     if (!/^\d{5}$/.test(w.zip)) return fallback();
     xhr('GET', 'https://api.zippopotam.us/us/' + w.zip, null, function(err, j){
@@ -671,6 +671,10 @@ function catClass(){
   cats.forEach(function(c, i){ c._el.className = 'scat' + (i === catIdx ? (sArea === 'cats' ? ' foc' : ' cur') : ''); });
   var box = $('setcatsbox'), e = cats[catIdx]._el, h = box.clientHeight, bot = e.offsetTop + e.offsetHeight, want = bot > h ? bot - h + 8 : 0;
   catY = want; $('setcats').style.transform = want ? 'translate3d(0,' + (-want) + 'px,0)' : 'translate3d(0,0,0)';
+  // while the rail is folded, the name of the highlighted icon floats next to it (the rail itself clips, so it is a separate element)
+  var tip = $('cattip'), showTip = sArea === 'cats' && !paneOpen;
+  cls($('settings'), 'tip', showTip);
+  if (showTip) { tip.textContent = cats[catIdx].name; tip.style.top = (box.offsetTop + e.offsetTop - want + e.offsetHeight / 2 - tip.offsetHeight / 2) + 'px'; }
 }
 function renderCat(reload){
   var c = cats[catIdx];
@@ -738,7 +742,7 @@ function sFocus(r, c, keep){
   setY = want; $('setinner').style.transform = want ? 'translate3d(0,' + (-want) + 'px,0)' : 'translate3d(0,0,0)';
 }
 function setArea(a){ sArea = a; catClass(); if (a === 'pane') { sFocus(0, 0); } else { var o = sRows[sR] && sRows[sR][sC]; if (o) o.className = o.className.replace(' foc', ''); } }
-function paneSet(on){ paneOpen = on; cls($('settings'), 'open', on); }
+function paneSet(on){ paneOpen = on; cls($('settings'), 'open', on); catClass(); }
 // OK on an icon of the rail: unfold that category next to the rail and move into it
 function openPane(){ paneSet(true); sArea = 'pane'; sR = sC = 0; setY = 0; $('setinner').style.transform = ''; catClass(); renderCat(true); }
 function openSettings(id){
@@ -952,6 +956,7 @@ if (SETMODE) {
   netLabel(); activity();
   if (MOCK && /saver/.test(location.search)) setTimeout(saverStart, 1200);
   if (MOCK && /settings=(\w+)/.test(location.search)) setTimeout(function(){ openSettings(/settings=(\w+)/.exec(location.search)[1]); setArea('pane'); if (/row=(\d+)/.test(location.search)) sFocus(parseInt(/row=(\d+)/.exec(location.search)[1], 10), 0); }, 1500);
+  if (MOCK && /rail=1/.test(location.search)) setTimeout(function(){ openSettings(); }, 1500);
   if (MOCK && /edit=(\S+?)(&|$)/.test(location.search)) setTimeout(function(){ edOpen(/edit=(\S+?)(&|$)/.exec(location.search)[1]); }, 1500);
 }
 applyUi();

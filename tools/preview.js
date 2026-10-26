@@ -16,8 +16,11 @@ for (const a of lp.launchPoints) for (const k of ['largeIcon', 'icon']) {
   if (!fs.existsSync(local)) { const r = cp.spawnSync('ssh', ssh.concat(['cat', p]), { maxBuffer: 20e6 }); if (r.status === 0 && r.stdout.length) fs.writeFileSync(local, r.stdout); }
 }
 const demo = path.join(root, 'scratch', 'demo-photos'), real = path.join(root, 'tv', 'launcher', 'photos');
+// PV_PUBLIC=1 (used for the README pictures): NO photos at all, a generic weather place and a generic IP, so nothing personal can end up in an image
+const PUBLIC = !!process.env.PV_PUBLIC;
 const src = fs.existsSync(real) && fs.readdirSync(real).length ? real : demo;
-const photos = fs.existsSync(src) ? fs.readdirSync(src).filter(f => /\.jpe?g$/i.test(f)) : [];
+const photos = !PUBLIC && fs.existsSync(src) ? fs.readdirSync(src).filter(f => /\.jpe?g$/i.test(f)) : [];
+if (PUBLIC) { fs.rmSync(path.join(pv, 'photos'), { recursive: true, force: true }); }
 fs.mkdirSync(path.join(pv, 'photos', 'thumbs'), { recursive: true });
 photos.forEach(f => { fs.copyFileSync(path.join(src, f), path.join(pv, 'photos', f)); const t = path.join(src, 'thumbs', f); if (fs.existsSync(t)) fs.copyFileSync(t, path.join(pv, 'photos', 'thumbs', f)); });
 // extra fixtures for the Settings pages: real LG values captured from the TV (scratch/lg-mock.json), the services catalog, the block lists, saved framing
@@ -29,14 +32,16 @@ const svc = readLines(path.join(root, 'tv', 'services.tsv')).map(l => { const f 
 const lists = readLines(path.join(root, 'tv', 'blocklists', 'lists.tsv')).map(l => { const f = l.split('|');
   return { id: f[0], kind: f[1], on: f[2] === 'on', name: f[3], desc: f[4], count: { lg: 83, ads: 324, trackers: 129, streaming: 34, pgl: 3563, perflyst: 498, adaway: 6500 }[f[0]] || 0, stamp: f[1] === 'remote' ? 1793000000 : 0 }; });
 const cropsDir = path.join(real, 'crops'), cropsObj = {};
-if (fs.existsSync(cropsDir)) for (const f of fs.readdirSync(cropsDir)) cropsObj[f.replace(/\.json$/, '.jpg')] = JSON.parse(fs.readFileSync(path.join(cropsDir, f), 'utf8'));
-const mock = { '/api/apps': lp, '/api/photos': photos, iconBase: 'icons/', photoBase: 'photos/', lg: lg, lgDim: lgDim, '/api/svc': svc, '/api/gear': { gear: 'ours' },
+if (!PUBLIC && fs.existsSync(cropsDir)) for (const f of fs.readdirSync(cropsDir)) cropsObj[f.replace(/\.json$/, '.jpg')] = JSON.parse(fs.readFileSync(path.join(cropsDir, f), 'utf8'));
+const mock = { '/api/apps': lp, '/api/photos': photos, iconBase: 'icons/', photoBase: 'photos/', lg: lg, lgDim: lgDim, '/api/svc': svc, '/api/gear': { gear: 'ours', pointer: 'off', chain: 'on' },
+  '/api/appupdates': { mode: 'auto', pending: ['com.peacock.tv'], lastCheckAgoSec: 1800, apps: [['Apple TV', 'com.apple.appletv', '17.0.3'], ['Disney+', 'com.disney.disneyplus-prod', '24.5.8'], ['HBO Max', 'com.wbd.stream', '7.8.0'], ['Hulu', 'hulu', '7.0.6'], ['Netflix', 'netflix', '1.3.5'], ['Peacock', 'com.peacock.tv', '6.4.202'], ['Prime Video', 'amazon', '4.5.25'], ['Spotify', 'spotify-beehive', '2.0.37'], ['YouTube', 'youtube.leanback.v4', '1.0.18']].map(a => ({ title: a[0], id: a[1], version: a[2], pending: a[1] === 'com.peacock.tv' })) },
   '/api/block': { blocked: 4414, custom: 0, allowCustom: 0, lists: lists }, '/api/crops': cropsObj,
   '/api/sysinfo': { uptime: 5400, mem: { totalMB: 964, availMB: 365, swapUsedMB: 235 }, procs: 261, lg: { modelName: 'UM7300PUA', firmwareVersion: '05.40.97', sdkVersion: '4.5.0' } },
-  '/api/net': { returnValue: true, isInternetConnectionAvailable: true, wired: { state: 'connected', ipAddress: '10.0.0.63' }, wifi: { state: 'disconnected' } },
+  '/api/net': { returnValue: true, isInternetConnectionAvailable: true, wired: { state: 'connected', ipAddress: '192.168.1.50' }, wifi: { state: 'disconnected' } },
   '/api/ready': { ok: true }, '/api/launch': { returnValue: true } };
 fs.writeFileSync(path.join(pv, 'mock.js'), 'window.__MOCK__=' + JSON.stringify(mock) + ';');
 for (const f of ['app.js','qr.js','stage.js','phone.html']) if (fs.existsSync(path.join(root,'tv','launcher',f))) fs.copyFileSync(path.join(root,'tv','launcher',f), path.join(pv,f));
+if (PUBLIC) { let a = fs.readFileSync(path.join(pv, 'app.js'), 'utf8'); a = a.replace(/fallbackPlace: \{[^}]*\}/, "fallbackPlace: {lat: 39.78, lon: -89.65, place: 'Springfield'}").replace('https://ipwho.is/', 'https://invalid.invalid/'); fs.writeFileSync(path.join(pv, 'app.js'), a); }
 fs.writeFileSync(path.join(pv, 'index.html'), fs.readFileSync(path.join(root, 'tv', 'launcher', 'index.html'), 'utf8').replace('<!--MOCK-->', '<script src="mock.js"></script><style>*{transition:none !important}</style>'));
 const name = process.argv[2] || 'home', query = process.argv[3] || 'mock=1';
 const browsers = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe'];
@@ -45,6 +50,7 @@ if (!b) { console.error('no Edge/Chrome found'); process.exit(1); }
 const out = path.join(root, 'shots', name + '.png');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 const url = 'file:///' + path.join(pv, 'index.html').replace(/\\/g, '/') + '?' + query;
+if (PUBLIC) fs.rmSync(path.join(pv, '.profile'), { recursive: true, force: true });      // no cached weather place / settings from earlier runs
 cp.spawnSync(b, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--window-size=1920,1080', '--force-device-scale-factor=1',
   '--virtual-time-budget=' + (process.env.BUDGET || '4000'), '--screenshot=' + out, '--user-data-dir=' + path.join(pv, '.profile'), url], { stdio: 'inherit', timeout: 60000 });
 console.log(fs.existsSync(out) ? 'wrote ' + out : 'screenshot failed');
