@@ -7,8 +7,9 @@ const root = path.resolve(__dirname, '..');
 const pv = path.join(root, 'scratch', 'preview');
 fs.mkdirSync(path.join(pv, 'icons'), { recursive: true });
 fs.mkdirSync(path.join(pv, 'photos'), { recursive: true });
+function tvTarget() { try { return 'root@' + /^TV_IP=(\S+)/m.exec(fs.readFileSync(path.join(root, 'tv.conf'), 'utf8'))[1]; } catch (e) { return 'root@tv.invalid'; } }
 const lp = JSON.parse(fs.readFileSync(path.join(root, 'scratch', 'launchpoints.json'), 'utf8'));
-const ssh = ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', '-o', 'LogLevel=ERROR', 'root@10.0.0.63'];
+const ssh = ['-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', '-o', 'LogLevel=ERROR', tvTarget()];
 for (const a of lp.launchPoints) for (const k of ['largeIcon', 'icon']) {
   const p = a[k]; if (!p || p[0] !== '/') continue;
   const local = path.join(pv, 'icons', p.split('/').slice(-2).join('_'));

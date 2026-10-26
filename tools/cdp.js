@@ -7,7 +7,7 @@
 //   node tools/cdp.js key   <title-or-url-substring> <keyCode> [count]   (inject a remote-control key press)
 //   node tools/cdp.js reload <title-or-url-substring>
 const fs = require('fs');
-const HOST = process.env.TV_HOST || '10.0.0.63';
+const HOST = process.env.TV_HOST || (() => { try { return /^TV_IP=(\S+)/m.exec(require('fs').readFileSync(require('path').join(__dirname, '..', 'tv.conf'), 'utf8'))[1]; } catch (e) { console.error('Set TV_HOST or create tv.conf (see tv.conf.example)'); process.exit(2); } })();
 const PORT = process.env.TV_CDP_PORT || '9998';
 
 async function pages() {
