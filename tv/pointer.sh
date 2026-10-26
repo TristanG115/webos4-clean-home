@@ -18,8 +18,12 @@ set_mode() {
   connected || return 2
   if [ "$1" = off ]; then cond=shake; act=false; else cond=motion; act=true; fi
   r1=$(lun $M/cursor/setWakeUpCondition "{\"condition\":\"$cond\"}" | tr -d '\n'); r2=$(lun $M/activateMotionSensor "{\"activate\":$act}" | tr -d '\n')
-  log "pointer: $1 -> wake=$(echo "$r1" | cut -c1-90) sensor=$(echo "$r2" | cut -c1-90)"
-  ok "$r1" || ok "$r2"
+  # park the arrow on the bottom-right pixel: the arrow is drawn down and to the right of its tip, so there it is cut off and cannot be seen
+  # even when the scroll wheel wakes it (the wheel shows the arrow where it last was). "on" puts it back in the middle of the screen.
+  if [ "$1" = off ]; then x=1919; y=1079; else x=960; y=540; fi
+  r3=$(lun $M/cursor/setPosition "{\"posX\":$x,\"posY\":$y}" | tr -d '\n')
+  log "pointer: $1 -> wake=$(echo "$r1" | cut -c1-90) sensor=$(echo "$r2" | cut -c1-90) park=$(echo "$r3" | cut -c1-90)"
+  ok "$r1" || ok "$r2" || ok "$r3"
 }
 stop() { [ -f $PIDF ] && kill "$(cat $PIDF)" 2>/dev/null; rm -f $PIDF; }
 watch() {

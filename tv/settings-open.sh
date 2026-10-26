@@ -15,6 +15,7 @@ do_open() {
 }
 do_close() { lun luna://com.palm.webappmanager/killApp "{\"appId\":\"$SET_ID\"}" >/dev/null; }
 case ${1:-toggle} in
+  launch) do_open >/dev/null;;                       # no "is it open already" check: the hook tracks that itself (fast path)
   open)   is_open || do_open;;
   close)  do_close;;
   toggle) if is_open; then do_close; else do_open; fi;;

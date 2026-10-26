@@ -21,7 +21,7 @@ var DEFAULTS = {
   weather: {mode: 'auto', zip: '', unit: 'F'},
   clock24: false,
   bg: {on: true, everyMin: 10},
-  saver: {on: true, idleMin: 2, photos: true, slideSec: 12, weather: true},
+  saver: {on: true, idleMin: 2, photos: true, slideSec: 12, weather: true, dim: 45},
   ui: {hideCursor: true},
   dock: ['netflix','youtube.leanback.v4','hulu','com.disney.disneyplus-prod'],
   hide: ['webos.day','com.webos.app.homeconnect','com.webos.app.home','com.webos.app.fullhome']
@@ -321,13 +321,14 @@ function saverStart(){
   ['bgA', 'bgB'].forEach(function(id){ var l = $(id); l.className = 'bgl'; layerStage(l).lastChild.removeAttribute('src'); }); setBodyBg(false);
   var withPhotos = S.saver.photos && photos.length > 0;
   $('saver').className = 'on' + (withPhotos ? '' : ' nophoto');
+  $('sdim').style.opacity = ((S.saver.dim === undefined ? 45 : S.saver.dim) / 100);
   $('scrimS').style.display = withPhotos ? 'block' : 'none';
   if (withPhotos) { pIx = (bgIx + 1) % photos.length; showNext(); } else { drift(); }
   dlog('saver on photos=' + withPhotos);
 }
 function saverStop(){
   if (!saverOn) return;
-  saverOn = false; clearTimeout(slideT); clearTimeout(driftT); $('saver').className = '';
+  saverOn = false; clearTimeout(slideT); clearTimeout(driftT); $('saver').className = ''; $('sdim').style.opacity = 0;
   var sv = svStages(); sv[0].className = 'stage'; sv[1].className = 'stage';
   var s = $('sinfo'); s.style.left = ''; s.style.bottom = '';
   setTimeout(function(){ if (!saverOn) { sv[0].lastChild.removeAttribute('src'); sv[1].lastChild.removeAttribute('src'); } }, 1500);
@@ -427,9 +428,11 @@ function lgSet(cat, key, val, after){
 function lgHas(cat, key){ return !!LGC[cat] && LGC[cat][key] !== undefined; }
 
 /* ================= Settings screen ================= */
+var paneOpen = false;
 var settingsOn = false, cats = [], catIdx = 0, sArea = 'cats', sRows = [], sR = 0, sC = 0, setY = 0, catY = 0;
 var ICON = {
   home: '<svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg>',
+  bolt: '<svg viewBox="0 0 24 24"><path d="M13 2.5L5.5 13.5H11l-1 8 8-11.5h-5.5z"/></svg>',
   cloud: '<svg viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.5 1.5A3.5 3.5 0 0 1 17 18z"/></svg>',
   image: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-8 8"/></svg>',
   pic: '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="#0b0e14"/><circle cx="15" cy="12" r="2" fill="#0b0e14"/><circle cx="8" cy="17" r="2" fill="#0b0e14"/></svg>',
@@ -461,6 +464,9 @@ function lgSld(cat, key, label, desc, min, max, step){
   it.local = function(v){ (LGC[cat] = LGC[cat] || {})[key] = String(v); }; it.show = function(){ return lgHas(cat, key); }; return it;
 }
 var OFFON = [['off','Off'],['on','On']];
+var ASPECTS = [['16x9','16:9'],['original','Original'],['full_wide','Full wide'],['4x3','4:3'],['14x9','14:9'],['zoom','Zoom'],['zoom2','Zoom 2'],['cinema_zoom','Cinema zoom'],['21x9','21:9']];
+var SOUNDMODES = [['standard','Standard'],['movie','Cinema'],['news','Clear voice / News'],['sports','Sports'],['music','Music'],['game','Game'],['asc','AI sound'],['bass','Bass']];
+var SLEEPS = [['off','Off'],['10','10 min'],['20','20 min'],['30','30 min'],['60','1 hour'],['90','1.5 hours'],['120','2 hours'],['180','3 hours'],['240','4 hours']];
 var LEVELS = [['off','Off'],['low','Low'],['medium','Medium'],['high','High']];
 var MINS = function(v){ return v + ' min'; };
 var PICMODES = {vivid:'Vivid', normal:'Standard', eco:'Eco', cinema:'Cinema', sports:'Sports', game:'Game', photo:'Photo', expert1:'Expert (bright room)', expert2:'Expert (dark room)',
@@ -476,6 +482,16 @@ function fmtDate2(sec){ if (!sec) return 'never'; var d = new Date(sec * 1000); 
 function num(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
 cats = [
+  {id: 'quick', name: 'Quick settings', icon: 'bolt', title: 'Quick settings', desc: 'The same shortcuts as LG’s quick panel: picture mode, aspect ratio, sound mode, sound out, sleep timer, network, and all settings.', info: '/api/net',
+    lg: [['picture', ['pictureMode','aspectRatio']], ['sound', ['soundMode','soundOutput']], ['time', ['sleepTimer']]], build: function(){ var j = this.data || {}, w = j.wired || {}, f = j.wifi || {}; return [
+    lgChc('picture', 'pictureMode', 'Picture mode', '', picModes, true),
+    lgChc('picture', 'aspectRatio', 'Aspect ratio', '', ASPECTS),
+    lgChc('sound', 'soundMode', 'Sound mode', '', SOUNDMODES),
+    lgChc('sound', 'soundOutput', 'Sound out', 'Where the sound plays. If the TV goes silent, pick TV speaker.', SOUNDOUT),
+    lgChc('time', 'sleepTimer', 'Sleep timer', 'Turns the TV off after this time', SLEEPS),
+    inf('Network', function(){ return (w.state === 'connected' ? 'Ethernet' : f.state === 'connected' ? 'Wi-Fi ' + (f.ssid || '') : 'Offline') + (w.ipAddress || f.ipAddress ? '  ·  ' + (w.ipAddress || f.ipAddress) : ''); }),
+    act('All settings', 'LG’s own full Settings app', function(){ launch('com.palm.app.settings'); })
+  ]; }},
   {id: 'home', name: 'Home & Screensaver', icon: 'home', title: 'Home & Screensaver', desc: 'Background photos, the idle (AFK) screen and the clock.', build: function(){ return [
     tgl('Photo background on Home', 'Uses the photos in your gallery', function(){ return S.bg.on; }, function(b){ setPath('bg.on', b); }),
     chc('Change background every', '', [[5,'5 min'],[10,'10 min'],[20,'20 min'],[30,'30 min'],[60,'1 hour']], function(){ return S.bg.everyMin; }, function(v){ setPath('bg.everyMin', v); }),
@@ -484,6 +500,7 @@ cats = [
     tgl('Show gallery photos in screensaver', 'Off = dark screen with clock', function(){ return S.saver.photos; }, function(b){ setPath('saver.photos', b); }),
     chc('Photo changes every', '', [[8,'8 s'],[12,'12 s'],[20,'20 s'],[30,'30 s'],[60,'1 min']], function(){ return S.saver.slideSec; }, function(v){ setPath('saver.slideSec', v); }),
     tgl('Show weather in screensaver', '', function(){ return S.saver.weather; }, function(b){ setPath('saver.weather', b); wxRender(); }),
+    sld('Screensaver dimming', 'Darkens the photo so the screensaver is easy on the eyes; the clock stays bright. 0 = no dimming', 0, 80, 5, function(){ return S.saver.dim === undefined ? 45 : S.saver.dim; }, function(v){ setPath('saver.dim', v); }),
     tgl('24-hour clock', '', function(){ return S.clock24; }, function(b){ setPath('clock24', b); })
   ]; }},
   {id: 'weather', name: 'Weather', icon: 'cloud', title: 'Weather', desc: 'Free forecasts from Open-Meteo.', build: function(){ return [
@@ -519,11 +536,11 @@ cats = [
     lgChc('picture', 'truMotionMode', 'TruMotion', 'Motion smoothing', [['off','Off'],['smooth','Smooth'],['clear','Clear'],['user','User']]),
     lgSld('picture', 'truMotionJudder', 'De-judder', '', 0, 10, 1), lgSld('picture', 'truMotionBlur', 'De-blur', '', 0, 10, 1),
     lgTgl('picture', 'motionEyeCare', 'Motion eye care', ''), lgTgl('picture', 'eyeComfortMode', 'Eye comfort mode', 'Warmer, easier on the eyes at night'),
-    lgChc('picture', 'aspectRatio', 'Aspect ratio', '', [['16x9','16:9'],['original','Original'],['full_wide','Full wide'],['4x3','4:3'],['14x9','14:9'],['zoom','Zoom'],['zoom2','Zoom 2'],['cinema_zoom','Cinema zoom'],['21x9','21:9']])
+    lgChc('picture', 'aspectRatio', 'Aspect ratio', '', ASPECTS)
   ]; }},
   {id: 'sound', name: 'Sound', icon: 'sound', title: 'Sound', desc: 'TV speaker and audio output options.',
     lg: [['sound', ['soundMode','clearVoice','autoVolume','virtualSurround','soundOutput','audioBalance','soundOptimizer','soundOutputDigital','hdmiArcMode','eArcSupport','lgSoundSync','startupSound','tvPowerSound']]], build: function(){ return [
-    lgChc('sound', 'soundMode', 'Sound mode', '', [['standard','Standard'],['movie','Cinema'],['news','Clear voice / News'],['sports','Sports'],['music','Music'],['game','Game'],['asc','AI sound'],['bass','Bass']]),
+    lgChc('sound', 'soundMode', 'Sound mode', '', SOUNDMODES),
     lgChc('sound', 'clearVoice', 'Clear Voice', 'Makes speech easier to hear', [['off','Off'],['level1','Level 1'],['level2','Level 2'],['level3','Level 3']]),
     lgTgl('sound', 'autoVolume', 'Auto volume', 'Evens out loud ads and quiet scenes'), lgTgl('sound', 'virtualSurround', 'Virtual surround', ''),
     lgSld('sound', 'audioBalance', 'Balance', 'Left / right', -50, 50, 1),
@@ -540,7 +557,7 @@ cats = [
     lgTgl('general', 'homeAutoLaunch', 'Show Home when the TV turns on', ''),
     lgTgl('option', 'standByLight', 'Standby light', ''), lgChc('option', 'logoLight', 'LG logo light', '', LEVELS), lgTgl('option', 'powerOnLight', 'Power-on light', ''),
     head('Timers'),
-    lgChc('time', 'sleepTimer', 'Sleep timer', 'Turns the TV off after this time', [['off','Off'],['10','10 min'],['20','20 min'],['30','30 min'],['60','1 hour'],['90','1.5 hours'],['120','2 hours'],['180','3 hours'],['240','4 hours']]),
+    lgChc('time', 'sleepTimer', 'Sleep timer', 'Turns the TV off after this time', SLEEPS),
     lgChc('time', 'noOperationAutoOff', 'Turn off when nobody uses the remote', 'In hours', [['off','Off'],['3','3 h'],['6','6 h'],['12','12 h'],['24','24 h']]),
     lgChc('time', 'automaticStandBy', 'Automatic standby', 'In hours without any activity', [['0','Off'],['2','2 h'],['4','4 h'],['6','6 h'],['8','8 h']]),
     lgTgl('time', 'noSignalAutoOff', 'Turn off when there is no signal', ''),
@@ -708,12 +725,18 @@ function sFocus(r, c, keep){
   setY = want; $('setinner').style.transform = want ? 'translate3d(0,' + (-want) + 'px,0)' : 'translate3d(0,0,0)';
 }
 function setArea(a){ sArea = a; catClass(); if (a === 'pane') { sFocus(0, 0); } else { var o = sRows[sR] && sRows[sR][sC]; if (o) o.className = o.className.replace(' foc', ''); } }
+function paneSet(on){ paneOpen = on; cls($('settings'), 'open', on); }
+// OK on an icon of the rail: unfold that category next to the rail and move into it
+function openPane(){ paneSet(true); sArea = 'pane'; sR = sC = 0; setY = 0; $('setinner').style.transform = ''; catClass(); renderCat(true); }
 function openSettings(id){
   if (settingsOn) return;
-  settingsOn = true; $('settings').className = 'on'; mpush('settings'); clearTimeout(idleT);
+  settingsOn = true; paneOpen = false; $('settings').className = 'on'; mpush('settings'); clearTimeout(idleT);
   if (!$('setcats').firstChild) renderCats();
-  if (id) for (var i = 0; i < cats.length; i++) if (cats[i].id === id) catIdx = i;
-  sArea = 'cats'; sR = sC = 0; setY = 0; $('setinner').style.transform = ''; catClass(); renderCat(true);
+  var named = false;
+  catIdx = 0;
+  if (id) for (var i = 0; i < cats.length; i++) if (cats[i].id === id) { catIdx = i; named = true; }
+  sArea = 'cats'; sR = sC = 0; setY = 0; $('setinner').style.transform = ''; catClass();
+  if (named) openPane();
 }
 function closeSettings(){
   settingsOn = false; mpop('settings'); $('settings').className = '';
@@ -730,10 +753,10 @@ function adjust(it, dir){
 }
 function settingsKey(k, e){
   if (sArea === 'cats') {
-    if (k === 38 && catIdx > 0) { catIdx--; catClass(); renderCat(true); }
-    else if (k === 40 && catIdx < cats.length - 1) { catIdx++; catClass(); renderCat(true); }
-    else if (k === 39 || k === 13) { if (sRows.length) setArea('pane'); }
-    else if (k === 461 || k === 27 || k === 8 || k === 37) closeSettings();
+    if (k === 38 && catIdx > 0) { catIdx--; catClass(); if (paneOpen) renderCat(true); }
+    else if (k === 40 && catIdx < cats.length - 1) { catIdx++; catClass(); if (paneOpen) renderCat(true); }
+    else if (k === 39 || k === 13) { if (!paneOpen) openPane(); else if (sRows.length) setArea('pane'); }
+    else if (k === 461 || k === 27 || k === 8 || k === 37) { if (paneOpen) paneSet(false); else closeSettings(); }
     return;
   }
   var cell = sRows[sR] && sRows[sR][sC], it = cell && cell._it, multi = sRows[sR] && sRows[sR].length > 1 || (it && it.type === 'thumb');
@@ -748,7 +771,7 @@ function settingsKey(k, e){
     else if (it.type === 'choice') adjust(it, 1);
     else if (it.type === 'action' || it.type === 'text') it.run();
   }
-  else if (k === 461 || k === 27 || k === 8) setArea('cats');
+  else if (k === 461 || k === 27 || k === 8) { paneSet(false); setArea('cats'); }
 }
 function thumbMenu(name){
   panelOpen('Photo', [
@@ -849,6 +872,23 @@ document.addEventListener('keydown', function(e){
   if (KEYS[k]) { move(KEYS[k]); e.preventDefault(); } else if (k === 13) { activate(); e.preventDefault(); }
 });
 document.addEventListener('mousemove', function(){ if (saverOn) saverStop(); activity(); });
+function upTo(n, re, stop){ while (n && n !== stop) { if (n.className && re.test(n.className)) return n; n = n.parentNode; } return null; }
+// pointer (if it ever shows): hover moves the highlight on Home and on the Settings rail, a click does what OK does
+document.addEventListener('mouseover', function(e){
+  if (saverOn) return;
+  var m = mtop();
+  if (m === 'settings') { if (paneOpen || sArea !== 'cats') return; var c = upTo(e.target, /(^| )scat( |$)/, document.body); if (c) for (var i = 0; i < cats.length; i++) if (cats[i]._el === c && catIdx !== i) { catIdx = i; catClass(); } return; }
+  if (SETMODE || m) return;
+  var n = upTo(e.target, /(^| )(tile|hbtn)( |$)/, document.body);
+  if (n) for (var r = 0; r < rows.length; r++) for (var q = 0; q < rows[r].length; q++) if (rows[r][q] === n) { focusItem(r, q); return; }
+});
+$('settings').addEventListener('click', function(e){
+  if (mtop() !== 'settings') return;
+  var c = upTo(e.target, /(^| )scat( |$)/, this);
+  if (c) { for (var i = 0; i < cats.length; i++) if (cats[i]._el === c) { catIdx = i; openPane(); } return; }
+  var rw = upTo(e.target, /(^| )(srow|gt)( |$)/, this);
+  if (rw) for (var r = 0; r < sRows.length; r++) for (var q = 0; q < sRows[r].length; q++) if (sRows[r][q] === rw) { sArea = 'pane'; catClass(); sFocus(r, q); settingsKey(13); }
+});
 document.addEventListener('click', function(e){
   var n = e.target; while (n && n !== document.body) { if (n.className && /(^| )(tile|hbtn)( |$)/.test(n.className)) break; n = n.parentNode; }
   if (!n || n === document.body || mstack.length) return;
@@ -873,7 +913,7 @@ if (SETMODE) {
   tick();
   loadSettings(function(){ refreshPhotos(function(){ if (settingsOn && cats[catIdx].id === 'gallery') renderCat(false); }); });
   openSettings();
-  if (MOCK && /settings=(\w+)/.test(location.search)) setTimeout(function(){ for (var i = 0; i < cats.length; i++) if (cats[i].id === /settings=(\w+)/.exec(location.search)[1]) { catIdx = i; catClass(); renderCat(true); } setArea('pane'); if (/row=(\d+)/.test(location.search)) sFocus(parseInt(/row=(\d+)/.exec(location.search)[1], 10), 0); }, 1200);
+  if (MOCK && /settings=(\w+)/.test(location.search)) setTimeout(function(){ for (var i = 0; i < cats.length; i++) if (cats[i].id === /settings=(\w+)/.exec(location.search)[1]) { catIdx = i; } catClass(); openPane(); if (/row=(\d+)/.test(location.search)) sFocus(parseInt(/row=(\d+)/.exec(location.search)[1], 10), 0); }, 1200);
 } else {
   document.addEventListener('visibilitychange', function(){ if (document.hidden) onHide(); else { if (!settingsOn) focusItem(1, 0); onShow(); } });
   document.addEventListener('webOSRelaunch', function(){ if (saverOn) saverStop(); while (mstack.length) { var t = mtop(); if (t === 'settings') closeSettings(); else if (t === 'panel') panelClose(); else if (t === 'qr') qrClose(); else if (t === 'keypad') keypadClose(); else if (t === 'editor') edClose(); else mstack.pop(); } focusItem(1, 0); onShow(); });

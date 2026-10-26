@@ -112,3 +112,15 @@ Verified: foreground tracking (hdmi2 -> Home -> `/api/back` returned to hdmi2), 
 **Not verified:** whether the shake setting actually stops the arrow showing (the remote was asleep, so the TV could not accept the request during testing), and the physical remote's Back key (only an injected 461 was tested).
 
 Back chain verified with injected Back key events written to the IR remote's evdev device (`/dev/input/event1`, 16-byte input_event, KEY_BACK=158): app quits to Home -> previous app opens; app keeps the key -> nothing; nothing before it -> stays on Home; switch off -> Home. Pointer switch was turned ON at the owner's request (2026-10-26); applies when the remote wakes. Physical remote not tested by the agent.
+
+## Round 5 (2026-10-26): Settings key speed, icon rail Settings, quick-settings parity, screensaver dimming, pointer parking
+
+| What | Where / command | Undo |
+|---|---|---|
+| Settings key handled earlier and LG's panel closed with the call that works | `settings-hook.sh` now starts on lginput2's `NL_BUTTON_CLICK KEY_SETTINGS` log line (about 0.5 s before LG's panel is drawn), opens our overlay at once (`settings-open.sh launch`, no "is it open" round trips; `/tmp/set-vis` tracks our overlay from its visible/hidden log events, `/tmp/gear-claim` marks the press) and closes LG's panel with `luna://com.webos.service.systemUIManager/closeByAppId {"appId":"com.webos.app.quicksettings"}`. The old call (`com.webos.surfacemanager/closeByAppId`) answers "This API is not supported", so LG's panel used to stay until our overlay took focus | `settings-hook.sh stop`, or Settings -> Remote -> Settings button opens LG's panel |
+| Settings = icon rail | `index.html` (`#settings` is a 10 rem rail, `.open` unfolds the pane), `app.js` (`paneOpen`, `openPane`, `paneSet`, keys: OK/Right unfold, Back folds, Back on the folded rail closes). Mouse hover/click on rail icons and rows | revert the commit |
+| "Quick settings" category (first icon) | Same shortcuts as LG's quick panel (read from its QML, `/usr/lib/qt5/qml/QuickSettings/QuickSettings.qml`): picture mode, aspect ratio, sound mode, sound out, sleep timer, network, all settings | - |
+| Screensaver dimming | `saver.dim` (0-80 %, default 45), a black layer (`#sdim`) under the clock; Settings -> Home & Screensaver. It dims the picture, not the TV backlight | set it to 0 |
+| Pointer parked | `pointer.sh` also calls `mrcu/cursor/setPosition 1919,1079` (arrow cut off in the corner); the scroll wheel wakes the arrow where it last was. UNVERIFIED (remote asleep during tests) | `pointer.sh on` |
+
+Facts: LG's quick panel is not a process; it lives in surface-manager (QML), preloaded at boot by `/usr/lib/qt5/qml/KeyFilters/appLaunch.js`, which launches it through `systemUIManager /launch` on `Key_webOS_Settings`; a QML replacement would need a surface-manager restart (not done on purpose). `getForegroundAppInfo` does not list overlays. Load average on the dev TV is about 30 (swap), which adds about 1 s of latency to every luna call.

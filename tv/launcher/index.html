@@ -69,6 +69,7 @@ body.hasbg .hbtn.foc{color:#fff}
 #saver .stage{opacity:0;transition:opacity 1.6s ease}
 #saver .stage.show{opacity:1}
 #saver.nophoto{background:radial-gradient(ellipse at 30% 80%,#16213a 0%,#06080d 70%)}
+#sdim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:1;background:#000;opacity:0;pointer-events:none;transition:opacity 1.2s ease}
 #scrimS{position:absolute;left:0;bottom:0;width:100%;height:24rem;z-index:2;background:linear-gradient(to top,rgba(0,0,0,.65),rgba(0,0,0,0))}
 #sinfo{position:absolute;left:4.5rem;bottom:3.6rem;z-index:3;text-shadow:0 .1rem .7rem rgba(0,0,0,.75);transition:left 2s ease,bottom 2s ease}
 #sinfo .t{font-size:7.2rem;font-weight:300;line-height:1;letter-spacing:-.15rem}
@@ -102,16 +103,19 @@ body.hasbg .hbtn.foc{color:#fff}
 .kk{width:8rem;height:6.4rem;margin:.5rem;border-radius:1.2rem;background:rgba(255,255,255,.08);font-size:2.4rem;display:flex;align-items:center;justify-content:center}
 .kk.foc{background:#fff;color:#0a0c11}
 /* Settings */
-#settings{position:fixed;left:0;top:0;width:100%;height:100%;background:#0b0e14;z-index:30;display:none}
+/* Settings = a slim rail of icons on the left; OK on an icon opens its settings next to the rail, Back folds it away again */
+#settings{position:fixed;left:0;top:0;width:10.4rem;height:100%;z-index:30;display:none;transition:width .28s ease;background:linear-gradient(90deg,rgba(9,11,16,.97) 0,rgba(9,11,16,.97) 76%,rgba(9,11,16,0) 100%)}
 #settings.on{display:block}
-#sethead{position:absolute;left:0;top:0;width:100%;height:9rem;padding:3rem 6rem 0;display:flex;justify-content:space-between;align-items:baseline}
-#sethead h1{font-size:3.4rem;font-weight:300}
-#sethead span{font-size:1.3rem;color:var(--dim)}
-.scat{position:relative;padding:1.3rem 1.8rem;margin-bottom:.5rem;border-radius:1.2rem;font-size:1.7rem;color:#aab2c3;display:flex;align-items:center}
-.scat svg{width:2.2rem;height:2.2rem;margin-right:1.2rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#settings.open{width:88rem;background:linear-gradient(90deg,rgba(9,11,16,.985) 0,rgba(9,11,16,.985) 91%,rgba(9,11,16,0) 100%)}
+#sethead{display:none}
+.scat{position:relative;height:4.3rem;margin-bottom:.35rem;border-radius:1.2rem;font-size:1.6rem;color:#aab2c3;display:flex;align-items:center;justify-content:center}
+.scat svg{width:2.4rem;height:2.4rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.scat span{display:none;position:absolute;left:6.6rem;top:50%;margin-top:-1.9rem;height:3.8rem;line-height:3.8rem;padding:0 1.5rem;border-radius:1rem;background:#fff;color:#0a0c11;white-space:nowrap;font-size:1.5rem;z-index:5}
+#settings:not(.open) .scat.foc span{display:block}
 .scat.cur{background:rgba(255,255,255,.08);color:#fff}
 .scat.foc{background:#fff;color:#0a0c11}
-#setpane{position:absolute;left:40rem;top:9.5rem;right:6rem;bottom:3rem;overflow:hidden}
+#setpane{position:absolute;left:12.6rem;top:3rem;right:7rem;bottom:3rem;overflow:hidden;opacity:0;visibility:hidden;transition:opacity .2s ease,visibility 0s .28s}
+#settings.open #setpane{opacity:1;visibility:visible;transition:opacity .25s ease .1s}
 #setinner{will-change:transform;transition:transform .25s ease}
 #settitle{font-size:2.4rem;margin:0 0 .4rem .4rem}
 #setdesc{font-size:1.3rem;color:var(--dim);margin:0 0 1.6rem .4rem}
@@ -148,19 +152,14 @@ body.hasbg .hbtn.foc{color:#fff}
 .srow .lab{max-width:64%}
 .srow .val .ok{color:#2ecc71;font-size:1.3rem;margin-right:1.2rem}
 .srow.foc .val .ok{color:#14803f}
-#setcatsbox{position:absolute;left:6rem;top:9.5rem;width:30rem;bottom:3rem;overflow:hidden}
+#setcatsbox{position:absolute;left:1.6rem;top:1.4rem;width:7.2rem;bottom:1rem;overflow:hidden}
 #setcats{position:absolute;left:0;top:0;width:100%;will-change:transform;transition:transform .2s ease}
 .scat{padding:1.1rem 1.8rem;margin-bottom:.4rem;font-size:1.6rem}
 /* hide the pointer on our own pages (setting: Remote -> Hide the pointer on Home) */
 body.nocursor,body.nocursor *{cursor:none !important}
-/* Settings as an overlay page (the remote's Settings key): a panel on the left, the running app stays visible on the right */
+/* Settings as an overlay page (the remote's Settings key): the rail on the left, the running app stays visible on the right */
 html.mode-settings,body.mode-settings{background:transparent}
 body.mode-settings > #view,body.mode-settings > #bgA,body.mode-settings > #bgB,body.mode-settings > #scrim2,body.mode-settings > #glowA,body.mode-settings > #glowB,body.mode-settings > #saver{display:none}
-body.mode-settings #settings{width:88rem;right:auto;background:linear-gradient(90deg,rgba(9,11,16,.985) 0,rgba(9,11,16,.985) 91%,rgba(9,11,16,0) 100%)}
-body.mode-settings #sethead{padding:2.6rem 3rem 0 3.4rem;width:84rem}
-body.mode-settings #sethead span{display:none}
-body.mode-settings #setcatsbox{left:2.6rem;width:24rem}
-body.mode-settings #setpane{left:29rem;right:7rem}
 body.mode-settings .gt{width:11.4rem;height:6.5rem;margin-right:.9rem;margin-bottom:1rem}
 /* photo framing editor: the photo fills the screen exactly like Home/screensaver do, with a see-through copy of Home on top */
 #editor{position:fixed;left:0;top:0;width:100%;height:100%;background:#000;display:none;z-index:75}
@@ -193,7 +192,7 @@ body.mode-settings .gt{width:11.4rem;height:6.5rem;margin-right:.9rem;margin-bot
   <div class="row"><div class="rowlabel">Favorites</div><div id="dock"></div></div>
   <div class="row"><div class="rowlabel">Apps</div><div id="grid"></div></div>
 </div>
-<div id="saver"><div id="scrimS"></div>
+<div id="saver"><div id="sdim"></div><div id="scrimS"></div>
   <div id="sinfo"><div class="t"></div><div class="d"></div><div class="w"></div></div></div>
 <div id="panel"><div id="pbox"><div id="ptitle"></div><div id="plist"></div><div id="phint">OK to select &nbsp;&middot;&nbsp; Back to close</div></div></div>
 <div id="settings">

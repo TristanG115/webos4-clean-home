@@ -18,17 +18,37 @@ alive && exit 0
 echo $$ > $PIDF
 log "settings-hook: watching for the Settings key"
 last=0
+# The log shows the press first: lginput2 logs KEY_SETTINGS about 0.5 s before LG's panel is drawn. We start our overlay right then (so it is up
+# as early as possible) and close LG's panel the moment it shows. Our overlay's own visible/hidden events keep /tmp/set-vis (the toggle state).
 tail -F "$LOG" 2>/dev/null | awk '
+  /NL_BUTTON_CLICK/ && /"button_type":"KEY_SETTINGS"/ { print "KEY"; fflush() }
   /NL_VSC/ && /com.webos.app.quicksettings/ && /"visible":true/ { print "QS"; fflush() }
+  /NL_VSC/ && /tv.debloat.settings/ && /"visible":true/ { print "SON"; fflush() }
+  /NL_VSC/ && /tv.debloat.settings/ && /"visible":false/ { print "SOFF"; fflush() }
   /NL_APP_LAUNCH_BEGIN/ && /"app_id":"com.palm.app.settings"/ { print "LGS"; fflush() }' | while read -r ev; do
+  case $ev in SON) touch /tmp/set-vis; continue;; SOFF) rm -f /tmp/set-vis; continue;; esac
   [ -e "$D/DISABLE" ] && continue
-  [ -e "$STATE/gear-lg" ] && [ "$ev" = QS ] && continue
-  now=$(cut -d. -f1 /proc/uptime); [ $((now - last)) -lt 2 ] && continue
-  if [ "$ev" = LGS ]; then lg_settings_allowed && continue; fi
-  api_ok || { log "settings-hook: API down, leaving LG's panel alone"; continue; }
-  last=$now
-  if [ "$ev" = QS ]; then lun luna://com.webos.surfacemanager/closeByAppId '{"id":"com.webos.app.quicksettings"}' >/dev/null
-  else lun luna://com.webos.applicationManager/closeByAppId '{"id":"com.palm.app.settings","forceMode":true}' >/dev/null; fi
-  sh "$D/settings-open.sh" toggle >/dev/null 2>&1
+  [ -e "$STATE/gear-lg" ] && [ "$ev" != LGS ] && continue
+  now=$(cut -d. -f1 /proc/uptime)
+  claim=$(cat /tmp/gear-claim 2>/dev/null); [ -n "$claim" ] || claim=-99
+  case $ev in
+    KEY)  [ $((now - last)) -lt 2 ] && continue
+          api_ok || { log "settings-hook: API down, leaving LG's panel alone"; continue; }
+          last=$now; echo $now > /tmp/gear-claim
+          if [ -e /tmp/set-vis ]; then sh "$D/settings-open.sh" close >/dev/null 2>&1 &
+          else sh "$D/settings-open.sh" launch >/dev/null 2>&1 & fi;;
+    QS)   lun luna://com.webos.service.systemUIManager/closeByAppId '{"appId":"com.webos.app.quicksettings"}' >/dev/null &
+          if [ $((now - claim)) -gt 3 ]; then       # not the Settings key (picture / aspect / sleep hotkeys, or a test): open ours as well
+            [ $((now - last)) -lt 2 ] && continue
+            api_ok || { log "settings-hook: API down, leaving LG's panel alone"; continue; }
+            last=$now; sh "$D/settings-open.sh" launch >/dev/null 2>&1 &
+          fi;;
+    LGS)  lg_settings_allowed && continue
+          api_ok || continue
+          lun luna://com.webos.applicationManager/closeByAppId '{"id":"com.palm.app.settings","forceMode":true}' >/dev/null
+          [ $((now - last)) -lt 2 ] && continue
+          last=$now; sh "$D/settings-open.sh" launch >/dev/null 2>&1 &
+          ;;
+  esac
 done
 rm -f $PIDF
