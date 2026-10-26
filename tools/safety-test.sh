@@ -32,7 +32,7 @@ echo "state after: $(home_state); hosts-block lines: $(grep -c '# tv-debloat' /e
 rm -f $D/DISABLE; echo 0 > $D/state/boot-count
 
 echo "=== restore full state"
-sh $D/debloat.sh apply hosts remotelogger nudge contentminer lgsettings admanager >/dev/null 2>&1
+sh $D/debloat.sh apply >/dev/null 2>&1
 sh $D/home-on.sh
 echo "state: $(home_state)"
 

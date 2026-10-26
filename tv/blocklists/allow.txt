@@ -1,0 +1,77 @@
+# allow.txt - never blocked, no matter which list asks for it.
+# "name" also protects every sub-domain of it; "=name" protects that exact host only.
+# Streaming and casting
+netflix.com
+nflxvideo.net
+nflximg.net
+nflximg.com
+nflxso.net
+nflxext.com
+youtube.com
+youtu.be
+googlevideo.com
+ytimg.com
+ggpht.com
+youtube-nocookie.com
+hulu.com
+huluim.com
+hulustream.com
+disneyplus.com
+disney-plus.net
+disneystreaming.com
+bamgrid.com
+dssott.com
+primevideo.com
+aiv-cdn.net
+aiv-delivery.net
+pv-cdn.net
+spotify.com
+scdn.co
+apple.com
+icloud.com
+mzstatic.com
+cdn-apple.com
+apple-dns.net
+plex.tv
+pluto.tv
+tubitv.com
+# Google/Amazon/Microsoft base services (exact only: their ad hosts live under the same names)
+=google.com
+=www.google.com
+=gstatic.com
+=www.gstatic.com
+=googleapis.com
+=accounts.google.com
+=amazon.com
+=www.amazon.com
+=microsoft.com
+=live.com
+# CDNs and cloud hosts (a blocked CDN name breaks unrelated apps)
+cloudfront.net
+akamaihd.net
+akamaized.net
+akamai.net
+edgesuite.net
+edgekey.net
+fastly.net
+fastlylb.net
+amazonaws.com
+azureedge.net
+cloudflare.com
+# Time, DNS, connectivity checks
+ntp.org
+pool.ntp.org
+time.google.com
+time.windows.com
+cloudflare-dns.com
+dns.google
+# Things this project itself needs
+open-meteo.com
+ipwho.is
+ipapi.co
+zippopotam.us
+github.com
+githubusercontent.com
+webosbrew.org
+yoyo.org
+adaway.org

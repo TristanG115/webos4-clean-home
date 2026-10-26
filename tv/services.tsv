@@ -1,0 +1,15 @@
+# services.tsv - the catalog behind Settings -> "Services & privacy". One line per switch, fields separated by "|" (no double quotes in the text):
+#   id | group | default (on = the switch is ON, i.e. LG's service is stopped/blocked) | locked (1 = cannot be turned off) | name | what it does / what you lose
+# State lives in state/svc.conf (id=on|off); tv/debloat.sh does the work and keeps it applied.
+hosts|Privacy & ads|on|0|Block ad & tracker servers|Makes the TV unable to reach LG's ad, recommendation and tracking servers, plus the block lists under Ad blocking. You lose nothing you would want: LG's own Home ad rows stay empty.
+admanager|Privacy & ads|on|0|Stop LG's ad service|Replaces LG's ad downloader with an empty program so it cannot fetch or show ads. LG's own Home screen needs it, so it is lifted automatically if you switch back to LG's Home.
+lgsettings|Privacy & ads|on|0|Keep LG's privacy switches off|Keeps LG's own switches for home promotions, personalised recommendations, nudges and the ad cookie turned off.
+nudge|Privacy & ads|on|0|Stop recommendation pop-ups|Stops LG's nudge service, which pops up suggestions of things to watch.
+contentminer|Privacy & ads|on|0|Stop the viewing-data collector|Stops the service that builds a profile of what you watch for recommendations and ads.
+remotelogger|Privacy & ads|on|0|Stop remote logging|Stops the service that sends diagnostic logs to LG.
+voice|Voice & smart home|on|0|Turn off the voice assistant|Turns off the remote's microphone button and voice search, which also frees memory. You type with the on-screen keyboard instead.
+iot|Voice & smart home|on|0|Turn off ThinQ & smart-home pairing|Stops the helpers that pair the TV with LG ThinQ and smart-home hubs. AirPlay and casting keep working.
+preload|Memory & speed|on|0|Trim LG's app pre-loading|LG keeps apps such as the Assistant, Browser, Tips, Vudu and Amazon half-open in the background so they start a little faster. On a 1 GB TV that costs more than it saves. Home, your favorites and the HDMI inputs stay pre-loaded.
+idleapps|Memory & speed|on|0|Close unused LG apps|Closes LG's Tips, Assistant and Browser apps when they are sitting idle in memory. They start again the moment you open them.
+epg|Memory & speed|off|0|Stop the TV guide downloader|Stops the program-guide downloader and saves a little memory. Leave this off if you watch antenna or cable TV, otherwise the Live TV guide stays empty.
+updates|Updates|on|1|Block LG system & app updates|Always on. Keeps automatic updates off, blocks LG's update servers and stops the update service, because a firmware update could remove root access and bring LG's software back.

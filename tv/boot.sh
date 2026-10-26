@@ -11,8 +11,11 @@ until lun luna://com.webos.applicationManager/running '{}' | grep -q returnValue
   sleep 3; n=$((n+3)); [ $n -gt 240 ] && { log "boot: SAM never answered"; exit 0; }
 done
 sleep 5
-sh "$D/debloat.sh" apply hosts remotelogger nudge contentminer lgsettings admanager voice iot idleapps >/dev/null 2>&1
+# every switch that is ON in Settings -> Services & privacy (state/svc.conf, defaults in services.tsv)
+sh "$D/debloat.sh" apply >/dev/null 2>&1
 if sh "$D/home-on.sh" >/dev/null 2>&1; then echo 0 > "$STATE/boot-count"; log "boot: launcher up, boot-count reset"; else log "boot: launcher not active (LG Home in use)"; fi
-# nudge/contentminer start late (trigger events); sweep for 5 minutes
-i=0; while [ $i -lt 15 ]; do sleep 20; sh "$D/debloat.sh" apply remotelogger nudge contentminer voice >/dev/null 2>&1; i=$((i+1)); done
+# refresh the remote ad-block lists in the background (needs the network; skipped when they are fresh)
+( sh "$D/blocklist.sh" maybe-update >/dev/null 2>&1 ) </dev/null >/dev/null 2>&1 &
+# nudge/contentminer/voice start late (trigger events); sweep for 5 minutes. home-on.sh's watchdog keeps sweeping every 5 minutes after that.
+i=0; while [ $i -lt 15 ]; do sleep 20; sh "$D/debloat.sh" sweep >/dev/null 2>&1; i=$((i+1)); done
 log "boot: done"

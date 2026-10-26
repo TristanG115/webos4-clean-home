@@ -1,0 +1,8 @@
+x mem_free=59MB avail=211MB swap_used=286MB
+x swap_in=5KB/s swap_out=0KB/s irq=13240/s ctx=24183/s idle=90.0%
+x fork300=1160ms
+x luna_rtt=17ms procs=257
+              total        used        free      shared  buff/cache   available
+Mem:            964         631          59          82         274         210
+Swap:           699         286         413
+30.89 30.97 28.22 1/865 9237

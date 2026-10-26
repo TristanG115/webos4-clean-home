@@ -1,0 +1,16 @@
+=== A. launcher fails to start -> automatic fallback to LG Home
+no launcher files
+home-on returned after 0 s; state: LG Home (no mount)
+LG native Home process running again (native entry in SAM list): 1
+launcher page restored on disk
+admanager stub mounted while LG Home active: 0 (expect 0: LG Home needs it)
+=== B. crash-loop guard
+PASS: boot.sh created DISABLE after 4th unfinished boot
+state after: LG Home (no mount); hosts-block lines: 2
+=== restore full state
+launcher active
+state: launcher mounted
+=== C. API watchdog self-heal
+API killed (as intended)
+PASS: API back after ~20 s
+final: launcher mounted; hosts: BLOCKING;remotelogger: STOPPED;nudge: STOPPED;contentminer: STOPPED;admanager: STUBBED;lgsettings: APPLIED;voiceinput: STOPPED;voiceconductor: STOPPED;nlpmanager: STUBBED;iot-client: STUBBED;ocf-onboarding: STUBBED;homekit: STUBBED;preload: TRIMMED;idleapps: CLOSED;iepg: running;broadcast-conf-downloader: running;updates: BLOCKED (3/3);

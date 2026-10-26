@@ -6,7 +6,7 @@ LOG=/var/log/messages
 lun() { luna-send -n 1 -w 8000 "$@" </dev/null 2>/dev/null; }
 fails=0
 try() { # id label wait
-  id=$1; n0=$(wc -l < $LOG)
+  id=$1; n0=$(wc -l < $LOG 2>/dev/null || echo 0)
   lun luna://com.webos.applicationManager/launch "{\"id\":\"$id\"}" >/dev/null
   sleep ${3:-8}
   r=$(tail -n +$((n0+1)) $LOG 2>/dev/null | awk -v id="$id" '
@@ -19,7 +19,15 @@ try() { # id label wait
   else echo "FAIL $2 ($id) never became visible"; fails=$((fails+1)); fi
 }
 HOME_ID=${HOME_ID:-com.webos.app.fullhome}
-try com.palm.app.settings "Settings opens" 8
+# LG's own Settings app is redirected to ours by settings-hook.sh; let it through for this test
+echo $(( $(cut -d. -f1 /proc/uptime) + 40 )) > /media/developer/tv-debloat/state/lgsettings.allow
+try com.palm.app.settings "LG Settings (legacy) opens" 8
+rm -f /media/developer/tv-debloat/state/lgsettings.allow
+# our Settings overlay (what the remote's Settings key opens)
+sh /media/developer/tv-debloat/settings-open.sh open >/dev/null 2>&1
+ok=0; i=0; while [ $i -lt 10 ]; do sleep 1; i=$((i+1)); lun luna://com.webos.applicationManager/getForegroundAppInfo '{"extraInfo":true}' | grep -q '"appId":"tv.debloat.settings"' && { ok=1; break; }; done
+if [ $ok = 1 ]; then echo "PASS our Settings overlay opens (after ${i} s)"; else echo "FAIL our Settings overlay did not open"; fails=$((fails+1)); fi
+sh /media/developer/tv-debloat/settings-open.sh close >/dev/null 2>&1; sleep 2
 try "$HOME_ID" "Home shows" 8
 try netflix "App (Netflix) opens" 10
 try "$HOME_ID" "Home shows again" 8

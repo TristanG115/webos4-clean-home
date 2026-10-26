@@ -1,0 +1,9 @@
+after-r3.mem_free_mb=98
+after-r3.mem_avail_mb=350
+after-r3.cache_mb=219
+after-r3.swap_used_mb=229
+after-r3.procs=258
+after-r3.launch_visible_ms_youtube.leanback.v4= 1877 1284 1282
+after-r3.launch_visible_ms_netflix= 1905 1679 1149
+after-r3.launch_visible_ms_home= 1463 1214 1162
+after-r3.end_swap_used_mb=218

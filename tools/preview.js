@@ -17,13 +17,26 @@ for (const a of lp.launchPoints) for (const k of ['largeIcon', 'icon']) {
 const demo = path.join(root, 'scratch', 'demo-photos'), real = path.join(root, 'tv', 'launcher', 'photos');
 const src = fs.existsSync(real) && fs.readdirSync(real).length ? real : demo;
 const photos = fs.existsSync(src) ? fs.readdirSync(src).filter(f => /\.jpe?g$/i.test(f)) : [];
-photos.forEach(f => fs.copyFileSync(path.join(src, f), path.join(pv, 'photos', f)));
-const mock = { '/api/apps': lp, '/api/photos': photos, iconBase: 'icons/', photoBase: 'photos/',
+fs.mkdirSync(path.join(pv, 'photos', 'thumbs'), { recursive: true });
+photos.forEach(f => { fs.copyFileSync(path.join(src, f), path.join(pv, 'photos', f)); const t = path.join(src, 'thumbs', f); if (fs.existsSync(t)) fs.copyFileSync(t, path.join(pv, 'photos', 'thumbs', f)); });
+// extra fixtures for the Settings pages: real LG values captured from the TV (scratch/lg-mock.json), the services catalog, the block lists, saved framing
+const lgm = fs.existsSync(path.join(root, 'scratch', 'lg-mock.json')) ? JSON.parse(fs.readFileSync(path.join(root, 'scratch', 'lg-mock.json'), 'utf8')) : {};
+const lg = {}, lgDim = {}; for (const c in lgm) { lg[c] = lgm[c].settings; lgDim[c] = lgm[c].dimension; }
+const readLines = f => fs.readFileSync(f, 'utf8').split('\n').map(l => l.replace(/\r$/, '')).filter(l => l && l[0] !== '#');
+const svc = readLines(path.join(root, 'tv', 'services.tsv')).map(l => { const f = l.split('|');
+  return { id: f[0], group: f[1], name: f[4], desc: f[5], locked: +f[3], on: f[2] === 'on' || f[3] === '1', active: f[2] === 'on' }; });
+const lists = readLines(path.join(root, 'tv', 'blocklists', 'lists.tsv')).map(l => { const f = l.split('|');
+  return { id: f[0], kind: f[1], on: f[2] === 'on', name: f[3], desc: f[4], count: { lg: 83, ads: 324, trackers: 129, streaming: 34, pgl: 3563, perflyst: 498, adaway: 6500 }[f[0]] || 0, stamp: f[1] === 'remote' ? 1793000000 : 0 }; });
+const cropsDir = path.join(real, 'crops'), cropsObj = {};
+if (fs.existsSync(cropsDir)) for (const f of fs.readdirSync(cropsDir)) cropsObj[f.replace(/\.json$/, '.jpg')] = JSON.parse(fs.readFileSync(path.join(cropsDir, f), 'utf8'));
+const mock = { '/api/apps': lp, '/api/photos': photos, iconBase: 'icons/', photoBase: 'photos/', lg: lg, lgDim: lgDim, '/api/svc': svc, '/api/gear': { gear: 'ours' },
+  '/api/block': { blocked: 4414, custom: 0, allowCustom: 0, lists: lists }, '/api/crops': cropsObj,
+  '/api/sysinfo': { uptime: 5400, mem: { totalMB: 964, availMB: 365, swapUsedMB: 235 }, procs: 261, lg: { modelName: 'UM7300PUA', firmwareVersion: '05.40.97', sdkVersion: '4.5.0' } },
   '/api/net': { returnValue: true, isInternetConnectionAvailable: true, wired: { state: 'connected', ipAddress: '10.0.0.63' }, wifi: { state: 'disconnected' } },
   '/api/ready': { ok: true }, '/api/launch': { returnValue: true } };
 fs.writeFileSync(path.join(pv, 'mock.js'), 'window.__MOCK__=' + JSON.stringify(mock) + ';');
-for (const f of ['app.js','qr.js','phone.html']) if (fs.existsSync(path.join(root,'tv','launcher',f))) fs.copyFileSync(path.join(root,'tv','launcher',f), path.join(pv,f));
-fs.writeFileSync(path.join(pv, 'index.html'), fs.readFileSync(path.join(root, 'tv', 'launcher', 'index.html'), 'utf8').replace('<!--MOCK-->', '<script src="mock.js"></script>'));
+for (const f of ['app.js','qr.js','stage.js','phone.html']) if (fs.existsSync(path.join(root,'tv','launcher',f))) fs.copyFileSync(path.join(root,'tv','launcher',f), path.join(pv,f));
+fs.writeFileSync(path.join(pv, 'index.html'), fs.readFileSync(path.join(root, 'tv', 'launcher', 'index.html'), 'utf8').replace('<!--MOCK-->', '<script src="mock.js"></script><style>*{transition:none !important}</style>'));
 const name = process.argv[2] || 'home', query = process.argv[3] || 'mock=1';
 const browsers = ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Microsoft/Edge/Application/msedge.exe', 'C:/Program Files/Google/Chrome/Application/chrome.exe'];
 const b = browsers.find(fs.existsSync);

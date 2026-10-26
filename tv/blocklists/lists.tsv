@@ -1,0 +1,11 @@
+# lists.tsv - the block lists behind Settings -> "Ad blocking". Fields separated by "|":
+#   id | kind (builtin = file in this folder, remote = downloaded by the TV into state/lists/) | default | name | what it blocks | url (remote only)
+# "Pi-hole style": every name is mapped to 0.0.0.0 in the TV's RAM hosts file. Exact host names only (a hosts file has no wildcards).
+# Nothing in allow.txt (or in state/block-allow.txt, your own allow list) is ever blocked, whatever the lists say.
+lg|builtin|on|LG ads & telemetry|LG's own ad, recommendation and tracking servers.|
+ads|builtin|on|Ad networks|The big advertising networks and ad exchanges that smart-TV apps load ads from.|
+trackers|builtin|on|Analytics & crash reporting|Usage analytics, attribution and crash-report collectors used inside apps.|
+streaming|builtin|off|Streaming-app ad servers|Ad-insertion and ad-verification servers of streaming apps. May make some apps refuse to play, so it is off by default.|
+pgl|remote|on|Peter Lowe's ad server list|About 3,500 ad, tracking and spam hosts, kept up to date by pgl.yoyo.org. The TV downloads it by itself.|https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext
+perflyst|remote|on|Smart-TV tracking list|Hosts that LG, Samsung, Roku and other smart TVs report to (the Pi-hole SmartTV list by Perflyst, MIT).|https://raw.githubusercontent.com/Perflyst/PiHoleBlocklist/master/SmartTV.txt
+adaway|remote|off|AdAway hosts|About 6,500 mobile and app ad hosts from the AdAway project. More coverage, a little more risk of blocking something wanted.|https://adaway.org/hosts.txt
