@@ -881,7 +881,7 @@ function edClose(){ mpop('editor'); $('editor').className = ''; $('ghost').inner
 var KEYS = {37: 'L', 38: 'U', 39: 'R', 40: 'D'};
 // Back on Home returns to the app / input you were in before Home (the TV side remembers it: lastapp.sh)
 function goBack(){ api('/api/back', function(err, j){ if (err) return toast('Could not reach the TV'); if (!j || !j.back) toast('Nothing to go back to yet'); }); }
-document.addEventListener('keydown', function(e){
+function onKey(e){
   var k = e.keyCode, wasSaver = saverOn;
   activity();
   if (wasSaver) { saverStop(); e.preventDefault(); return; }
@@ -899,6 +899,14 @@ document.addEventListener('keydown', function(e){
   if (SETMODE) return;
   if (k === 461 || k === 27 || k === 8) { goBack(); e.preventDefault(); return; }
   if (KEYS[k]) { move(KEYS[k]); e.preventDefault(); } else if (k === 13) { activate(); e.preventDefault(); }
+}
+document.addEventListener('keydown', onKey);
+// the Magic Remote's scroll wheel (which is also what makes the pointer appear) moves the highlight up / down, like the arrow keys, in lists, panels and Settings
+var wheelAt = 0;
+document.addEventListener('wheel', function(e){
+  var now = Date.now(); if (now - wheelAt < 90) return; wheelAt = now;
+  var k = e.deltaY > 0 ? 40 : e.deltaY < 0 ? 38 : 0; if (!k) return;
+  onKey({keyCode: k, preventDefault: function(){ try { e.preventDefault(); } catch (x) {} }});
 });
 document.addEventListener('mousemove', function(){ if (saverOn) saverStop(); activity(); });
 function upTo(n, re, stop){ while (n && n !== stop) { if (n.className && re.test(n.className)) return n; n = n.parentNode; } return null; }
@@ -911,6 +919,14 @@ document.addEventListener('mouseover', function(e){
   var n = upTo(e.target, /(^| )(tile|hbtn)( |$)/, document.body);
   if (n) for (var r = 0; r < rows.length; r++) for (var q = 0; q < rows[r].length; q++) if (rows[r][q] === n) { focusItem(r, q); return; }
 });
+// pop-up lists (inputs, network, photo menu...), the number pad and the QR page also answer the pointer
+$('panel').addEventListener('mouseover', function(e){ var n = upTo(e.target, /(^| )pitem( |$)/, this); if (n) { var i = pItems.indexOf(n); if (i >= 0 && i !== pIdx) panelFocus(i); } });
+$('panel').addEventListener('click', function(e){
+  var n = upTo(e.target, /(^| )pitem( |$)/, this);
+  if (n) { var i = pItems.indexOf(n); if (i >= 0) { panelFocus(i); if (n._pick) n._pick(); } } else if (e.target === this) panelClose();
+});
+$('keym').addEventListener('click', function(e){ var n = upTo(e.target, /(^| )kk( |$)/, this); if (n) { var i = kBtns.indexOf(n); if (i >= 0) { kIdx = i; keypadDraw(); keypadKey(13, null); } } });
+$('qrm').addEventListener('click', function(){ qrClose(); });
 $('settings').addEventListener('click', function(e){
   if (mtop() !== 'settings') return;
   var c = upTo(e.target, /(^| )scat( |$)/, this);

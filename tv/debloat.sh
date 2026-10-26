@@ -1,6 +1,6 @@
 #!/bin/sh
 # debloat.sh apply|undo|status|state|sweep [item ...]
-#   items: hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates   (catalog: services.tsv)
+#   items: hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates qspatch   (catalog: services.tsv)
 #   apply   with no items = every item that is switched ON in state/svc.conf (defaults from services.tsv)
 #   state   machine-readable "id active" lines (used by the Settings screen)
 #   sweep   re-apply whatever LG may have started again (cheap and idempotent; run at boot for 5 minutes and every few minutes after)
@@ -8,7 +8,7 @@
 # `lgsettings`/`updates`, which flip LG's own switches through LG's settings service (originals saved by undo / left as found).
 . /media/developer/tv-debloat/common.sh
 ACTION=${1:-status}; [ $# -gt 0 ] && shift
-ALL="hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates"
+ALL="hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates qspatch"
 CONF=$STATE/svc.conf; CATALOG=$D/services.tsv
 
 # --- which items are switched on ---------------------------------------------------------------------------------------
@@ -147,6 +147,15 @@ upd_hosts_apply() { upd_hosts_present && return 0; { echo "127.0.0.1 $UPD_HOSTS 
 upd_settings_ok() { lun luna://com.webos.settingsservice/getSystemSettings '{"category":"support","keys":["automaticUpdate"]}' | grep -q '"automaticUpdate": *"off"'; }
 upd_settings_apply() { upd_settings_ok || LGSET '{"category":"support","settings":{"automaticUpdate":"off"}}'; sh "$D/appupdate.sh" apply; }      # app updates: auto unless the owner chose manual
 upd_stub_ok() { is_mounted /usr/sbin/update; }
+# qspatch: LG's quick-settings panel and the scroll-wheel pointer key, switched off inside the compositor (see qspatch.sh: it restarts the compositor, with automatic rollback)
+do_qspatch() {
+  case $ACTION in
+    apply) sh "$D/qspatch.sh" boot;;
+    sweep) :;;
+    undo)  is_mounted /usr/lib/qt5/qml/KeyFilters/appLaunch.js && sh "$D/qspatch.sh" undo || echo "qspatch: not active";;
+    status) echo "qspatch: $(sh "$D/qspatch.sh" status)";;
+  esac
+}
 do_updates() {
   case $ACTION in
     apply|sweep) upd_settings_apply; upd_hosts_apply
@@ -175,6 +184,7 @@ active_of() {
     idleapps) [ "$(want idleapps)" = on ] && echo 1 || echo 0;;
     epg) svc_running iepg && echo 0 || echo 1;;
     updates) upd_hosts_present && ! svc_running update && echo 1 || echo 0;;
+    qspatch) is_mounted /usr/lib/qt5/qml/KeyFilters/appLaunch.js && echo 1 || echo 0;;
   esac
 }
 if [ "$ACTION" = state ]; then for i in $ALL; do echo "$i $(active_of $i)"; done; exit 0; fi
@@ -191,6 +201,7 @@ for i in $ITEMS; do
     idleapps) do_idleapps;;
     epg) do_epg;;
     updates) do_updates;;
+    qspatch) do_qspatch;;
     *) echo "unknown item: $i";;
   esac
 done
