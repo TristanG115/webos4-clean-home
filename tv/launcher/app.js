@@ -40,6 +40,7 @@ function cls(e, c, on){ var has = (' ' + e.className + ' ').indexOf(' ' + c + ' 
 
 /* ================= http / api ================= */
 function xhr(method, url, body, cb, timeout){
+  if (window.__TVAPI__ && url.indexOf(API) === 0) { window.__TVAPI__(method, url.slice(API.length), body, cb); return; }      // rootless build (rootless.js): no local API
   var x = new XMLHttpRequest(); x.open(method, url, true); x.timeout = timeout || 10000;
   x.onload = function(){ var j = null; try { j = JSON.parse(x.responseText); } catch(e){} cb(x.status >= 200 && x.status < 300 ? null : new Error('HTTP ' + x.status), j); };
   x.onerror = x.ontimeout = function(){ cb(new Error('net'), null); };
