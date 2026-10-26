@@ -1,9 +1,14 @@
-/* Home launcher logic for LG webOS 4.x (Chromium 53): ES5 style on purpose. */
+/* Home launcher logic for LG webOS 4.x (Chromium 53): ES5 style on purpose.
+   Two modes share this file: Home (index.html) and the Settings overlay (settings.html, opened by the remote's Settings key). */
 (function(){
 'use strict';
 
 /* ================= configuration & settings ================= */
 var API = 'http://127.0.0.1:8765';
+var MOCK = window.__MOCK__ || null;
+var MODE = window.__MODE__ || 'home';
+if (MOCK && /mode=settings/.test(location.search)) MODE = 'settings';
+var SETMODE = MODE === 'settings';
 var CFG = {
   glow: {'netflix':'#e50914','youtube.leanback.v4':'#ff1f3d','hulu':'#1ce783','com.disney.disneyplus-prod':'#2a5bff','amazon':'#00a8e1',
          'com.apple.appletv':'#9aa3b5','com.wbd.stream':'#5b3dff','com.peacock.tv':'#f5c518','spotify-beehive':'#1db954','com.plutotv.app':'#fff200','com.tubitv.ott.tubi':'#7a2bff'},
@@ -17,10 +22,10 @@ var DEFAULTS = {
   clock24: false,
   bg: {on: true, everyMin: 10},
   saver: {on: true, idleMin: 2, photos: true, slideSec: 12, weather: true},
+  ui: {hideCursor: true},
   dock: ['netflix','youtube.leanback.v4','hulu','com.disney.disneyplus-prod'],
   hide: ['webos.day','com.webos.app.homeconnect','com.webos.app.home','com.webos.app.fullhome']
 };
-var MOCK = window.__MOCK__ || null;
 var S = clone(DEFAULTS);
 
 function $(id){ return document.getElementById(id); }
@@ -31,6 +36,7 @@ function p2(n){ return n < 10 ? '0' + n : '' + n; }
 function lsGet(k){ try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch(e){ return null; } }
 function lsSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
 function noop(){}
+function cls(e, c, on){ var has = (' ' + e.className + ' ').indexOf(' ' + c + ' ') >= 0; if (on && !has) e.className += (e.className ? ' ' : '') + c; else if (!on && has) e.className = (' ' + e.className + ' ').replace(' ' + c + ' ', ' ').replace(/^ +| +$/g, '').replace(/ {2,}/g, ' '); }
 
 /* ================= http / api ================= */
 function xhr(method, url, body, cb, timeout){
@@ -41,36 +47,44 @@ function xhr(method, url, body, cb, timeout){
 }
 function mockFor(path){
   var q = path.split('?'), p = q[0];
-  if (p === '/api/lg/get') { var m = /cat=(\w+)/.exec(q[1] || ''); return {returnValue: true, settings: (MOCK.lg || {})[m ? m[1] : ''] || {}}; }
+  if (p === '/api/lg/get') { var m = /cat=(\w+)/.exec(q[1] || ''); var d = (MOCK.lg || {})[m ? m[1] : ''] || {}; return {returnValue: true, settings: d, dimension: (MOCK.lgDim || {})[m ? m[1] : ''] || {}}; }
   return MOCK[p] !== undefined ? MOCK[p] : {};
 }
-function api(path, cb){ if (MOCK) { setTimeout(function(){ cb(null, clone(mockFor(path))); }, 15); return; } xhr('GET', API + path, null, cb, 12000); }
-function apiPost(path, body, cb){ if (MOCK) { setTimeout(function(){ cb(null, {ok: true, returnValue: true}); }, 15); return; } xhr('POST', API + path, body, cb || noop, 12000); }
+function api(path, cb, timeout){ if (MOCK) { setTimeout(function(){ cb(null, clone(mockFor(path))); }, 15); return; } xhr('GET', API + path, null, cb, timeout || 12000); }
+function apiPost(path, body, cb, timeout){ if (MOCK) { setTimeout(function(){ (cb || noop)(null, mockFor(path.split('?')[0]) || {ok: true, returnValue: true}); }, 15); return; } xhr('POST', API + path, body, cb || noop, timeout || 12000); }
 var logN = 0;
 function dlog(m){ if (MOCK || logN++ > 200) return; try { xhr('POST', API + '/api/log', String(m), noop, 3000); } catch(e){} }
 window.onerror = function(m, u, l){ dlog('JSERR ' + m + ' @' + l); };
-function toast(m){ var t = $('toast'); t.textContent = m; t.className = 'on'; clearTimeout(toast.h); toast.h = setTimeout(function(){ t.className = ''; }, 3000); }
+function toast(m){ var t = $('toast'); t.textContent = m; t.className = 'on'; clearTimeout(toast.h); toast.h = setTimeout(function(){ t.className = ''; }, 3200); }
+// held keys repeat quickly: the longer a key is held the bigger the step (sliders, framing editor)
+var lastKey = 0, lastKeyAt = 0, keyRun = 0;
+function boost(k){ var n = Date.now(); if (k === lastKey && n - lastKeyAt < 160) keyRun++; else keyRun = 0; lastKey = k; lastKeyAt = n; return keyRun < 4 ? 1 : keyRun < 12 ? 3 : 6; }
 
 /* ================= settings store ================= */
-var saveT = null, lastSavedJson = '';
+var saveT = null;
 function saveSettings(){
   clearTimeout(saveT);
-  saveT = setTimeout(function(){ saveT = null; lastSavedJson = JSON.stringify(S); apiPost('/api/settings', lastSavedJson, function(err){ if (err) dlog('settings save failed'); }); }, 400);
+  saveT = setTimeout(function(){ saveT = null; apiPost('/api/settings', JSON.stringify(S), function(err){ if (err) dlog('settings save failed'); }); }, 400);
 }
 function setPath(path, v){ var p = path.split('.'), o = S; for (var i = 0; i < p.length - 1; i++) o = o[p[i]]; o[p[p.length - 1]] = v; saveSettings(); settingsChanged(path); }
 function getPath(path){ var p = path.split('.'), o = S; for (var i = 0; i < p.length; i++) o = o[p[i]]; return o; }
+function applyUi(){ cls(document.body, 'nocursor', !!(S.ui && S.ui.hideCursor)); }
 function settingsChanged(path){
+  if (SETMODE) { if (path.indexOf('ui.') === 0) applyUi(); return; }
   if (path.indexOf('weather.') === 0) wxLoad(true);
   if (path.indexOf('clock24') === 0) { lastT = ''; tick(); }
   if (path.indexOf('bg.') === 0) { bgApply(true); }
   if (path.indexOf('saver.') === 0) activity();
+  if (path.indexOf('ui.') === 0) applyUi();
 }
 function applyRemoteSettings(j){
   if (!j || typeof j !== 'object') return;
   var n = merge(clone(DEFAULTS), j), a = JSON.stringify(n), b = JSON.stringify(S);
   if (a === b || saveT) return;      // unchanged, or we have an unsaved local edit
   var wxCh = JSON.stringify(n.weather) !== JSON.stringify(S.weather), bgCh = JSON.stringify(n.bg) !== JSON.stringify(S.bg);
-  S = n; lastT = ''; tick(); if (wxCh) wxLoad(true); if (bgCh) bgApply(true); activity(); if (settingsOn) renderCat(false);
+  S = n; applyUi();
+  if (SETMODE) { if (settingsOn) renderCat(false); return; }
+  lastT = ''; tick(); if (wxCh) wxLoad(true); if (bgCh) bgApply(true); activity(); if (settingsOn) renderCat(false);
 }
 function loadSettings(cb){ api('/api/settings', function(err, j){ if (!err) applyRemoteSettings(j); if (cb) cb(); }); }
 
@@ -223,13 +237,16 @@ function move(dir){
 }
 function launch(id){
   dlog('launch ' + id);
-  api('/api/launch?id=' + encodeURIComponent(id), function(err, j){ if (err || (j && j.returnValue === false)) toast('Could not open ' + id + (j && j.errorText ? ' (' + j.errorText + ')' : '')); });
+  var path = id === 'com.palm.app.settings' ? '/api/lg/open' : '/api/launch?id=' + encodeURIComponent(id);
+  api(path, function(err, j){ if (err || (j && j.returnValue === false)) toast('Could not open ' + id + (j && j.errorText ? ' (' + j.errorText + ')' : '')); else if (SETMODE && id === 'com.palm.app.settings') closeSettings(); });
 }
 
-/* ================= photos (gallery) & Home background ================= */
-var photos = [], photosLoaded = false;
-function photoUrl(n){ return (MOCK && MOCK.photoBase ? MOCK.photoBase : 'photos/') + encodeURIComponent(n); }
-function thumbUrl(n){ return (MOCK && MOCK.photoBase ? MOCK.photoBase : 'photos/') + 'thumbs/' + encodeURIComponent(n); }
+/* ================= photos (gallery), framing & Home background ================= */
+var photos = [], photosLoaded = false, crops = {};
+function photoBase(){ return MOCK && MOCK.photoBase ? MOCK.photoBase : 'photos/'; }
+function photoUrl(n){ return photoBase() + encodeURIComponent(n); }
+function thumbUrl(n){ return photoBase() + 'thumbs/' + encodeURIComponent(n); }
+function httpPhotoUrl(n){ return MOCK ? photoUrl(n) : API + '/photos/' + encodeURIComponent(n); }      // the editor reads pixels, so it needs a CORS-enabled URL
 function shuffle(a){ for (var i = a.length - 1; i > 0; i--) { var k = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[k]; a[k] = t; } return a; }
 function refreshPhotos(cb){
   api('/api/photos', function(err, j){
@@ -241,20 +258,27 @@ function refreshPhotos(cb){
       photos = keep.concat(add); changed = photos.length !== had.length || add.length > 0;
     }
     if (changed && photos.length && bgIx >= photos.length) bgIx = 0;
-    if (cb) cb(changed);
+    api('/api/crops', function(e2, c){
+      if (!e2 && c && typeof c === 'object') { var s1 = JSON.stringify(crops), s2 = JSON.stringify(c); if (s1 !== s2) { crops = c; changed = true; } }
+      if (cb) cb(changed);
+    });
   });
 }
+function setBodyBg(on){ cls(document.body, 'hasbg', on); }
+function hasBg(){ return document.body.className.indexOf('hasbg') >= 0; }
+function layerStage(layer){ if (!layer._st) { layer._st = Stage.make(); layer.appendChild(layer._st); } return layer._st; }
 var bgIx = -1, bgFlip = 0, bgT = null, bgAt = 0;
 function bgShow(ix){
   if (!photos.length || !S.bg.on) return;
   bgIx = ((ix % photos.length) + photos.length) % photos.length; bgAt = Date.now(); lsSet('bgName', photos[bgIx]);
-  var a = $(bgFlip ? 'bgB' : 'bgA'), b = $(bgFlip ? 'bgA' : 'bgB'), im = new Image();
+  var name = photos[bgIx], a = $(bgFlip ? 'bgB' : 'bgA'), b = $(bgFlip ? 'bgA' : 'bgB'), im = new Image();
   im.onload = function(){
-    a.firstChild.src = im.src; a.className = 'bgl show'; b.className = 'bgl'; document.body.className = 'hasbg'; bgFlip = 1 - bgFlip;
-    setTimeout(function(){ if (b.className.indexOf('show') < 0) b.firstChild.removeAttribute('src'); }, 3000);
+    var st = layerStage(a); st.lastChild.src = im.src; Stage.place(st, im.naturalWidth, im.naturalHeight, crops[name]);
+    a.className = 'bgl show'; b.className = 'bgl'; setBodyBg(true); bgFlip = 1 - bgFlip;
+    setTimeout(function(){ if (b.className.indexOf('show') < 0) layerStage(b).lastChild.removeAttribute('src'); }, 3000);
   };
-  im.onerror = function(){ dlog('bg photo failed ' + photos[bgIx]); };
-  im.src = photoUrl(photos[bgIx]);
+  im.onerror = function(){ dlog('bg photo failed ' + name); };
+  im.src = photoUrl(name);
 }
 function bgPickNew(){
   if (!photos.length || !S.bg.on) return;
@@ -264,23 +288,24 @@ function bgPickNew(){
 }
 function bgSchedule(){ clearTimeout(bgT); bgT = setTimeout(function(){ if (!document.hidden && !saverOn && !settingsOn) bgShow(bgIx + 1); bgSchedule(); }, Math.max(1, S.bg.everyMin) * 60000); }
 function bgApply(reschedule){
-  if (!S.bg.on || !photos.length) { $('bgA').className = $('bgB').className = 'bgl'; document.body.className = ''; $('bgA').firstChild.removeAttribute('src'); $('bgB').firstChild.removeAttribute('src'); }
+  if (!S.bg.on || !photos.length) { $('bgA').className = $('bgB').className = 'bgl'; setBodyBg(false); layerStage($('bgA')).lastChild.removeAttribute('src'); layerStage($('bgB')).lastChild.removeAttribute('src'); }
   else if (reschedule && bgIx < 0) bgPickNew();
-  else if (document.body.className !== 'hasbg') bgShow(bgIx < 0 ? 0 : bgIx);
+  else if (!hasBg()) bgShow(bgIx < 0 ? 0 : bgIx);
   if (reschedule) bgSchedule();
 }
 
 /* ================= screensaver / AFK ================= */
-var saverOn = false, pIx = 0, flip = 0, idleT = null, slideT = null, driftT = null;
+var saverOn = false, pIx = 0, flip = 0, idleT = null, slideT = null, driftT = null, SV = null;
+function svStages(){ if (!SV) { SV = [Stage.make(), Stage.make()]; var sv = $('saver'); sv.insertBefore(SV[0], sv.firstChild); sv.insertBefore(SV[1], sv.firstChild); } return SV; }
 function showNext(){
   if (!saverOn) return;
-  var a = $(flip ? 'sb' : 'sa'), b = $(flip ? 'sa' : 'sb');
-  var src = photoUrl(photos[pIx]); pIx = (pIx + 1) % photos.length; var im = new Image();
+  var sv = svStages(), a = sv[flip], b = sv[1 - flip];
+  var name = photos[pIx], src = photoUrl(name); pIx = (pIx + 1) % photos.length; var im = new Image();
   im.onload = function(){
     if (!saverOn) return;
-    a.src = src; a.className = 'show'; b.className = ''; flip = 1 - flip;
+    a.lastChild.src = src; Stage.place(a, im.naturalWidth, im.naturalHeight, crops[name]); a.className = 'stage show'; b.className = 'stage'; flip = 1 - flip;
     slideT = setTimeout(showNext, Math.max(4, S.saver.slideSec) * 1000);
-    setTimeout(function(){ if (!a.className) return; b.removeAttribute('src'); }, 2200);
+    setTimeout(function(){ if (a.className.indexOf('show') < 0) return; b.lastChild.removeAttribute('src'); }, 2200);
   };
   im.onerror = function(){ dlog('photo failed ' + src); slideT = setTimeout(showNext, 1000); };
   im.src = src;
@@ -290,8 +315,10 @@ function drift(){
   driftT = setTimeout(drift, 60000);
 }
 function saverStart(){
-  if (saverOn || document.hidden || mstack.length || settingsOn) return;
+  if (saverOn || document.hidden || mstack.length || settingsOn || SETMODE) return;
   saverOn = true; lastT = lastD = ''; tick(); wxRender();
+  // free the Home background while the screensaver runs: two big photos at once would make the TV swap
+  ['bgA', 'bgB'].forEach(function(id){ var l = $(id); l.className = 'bgl'; layerStage(l).lastChild.removeAttribute('src'); }); setBodyBg(false);
   var withPhotos = S.saver.photos && photos.length > 0;
   $('saver').className = 'on' + (withPhotos ? '' : ' nophoto');
   $('scrimS').style.display = withPhotos ? 'block' : 'none';
@@ -300,11 +327,13 @@ function saverStart(){
 }
 function saverStop(){
   if (!saverOn) return;
-  saverOn = false; clearTimeout(slideT); clearTimeout(driftT); $('saver').className = ''; $('sa').className = ''; $('sb').className = '';
+  saverOn = false; clearTimeout(slideT); clearTimeout(driftT); $('saver').className = '';
+  var sv = svStages(); sv[0].className = 'stage'; sv[1].className = 'stage';
   var s = $('sinfo'); s.style.left = ''; s.style.bottom = '';
-  setTimeout(function(){ if (!saverOn) { $('sa').removeAttribute('src'); $('sb').removeAttribute('src'); } }, 1500);
+  setTimeout(function(){ if (!saverOn) { sv[0].lastChild.removeAttribute('src'); sv[1].lastChild.removeAttribute('src'); } }, 1500);
+  if (photos.length && S.bg.on) setTimeout(function(){ if (!saverOn) bgShow(bgIx < 0 ? 0 : bgIx); }, 200);
 }
-function activity(){ clearTimeout(idleT); if (document.hidden || !S.saver.on) return; idleT = setTimeout(saverStart, Math.max(1, S.saver.idleMin) * 60000); }
+function activity(){ clearTimeout(idleT); if (document.hidden || !S.saver.on || SETMODE) return; idleT = setTimeout(saverStart, Math.max(1, S.saver.idleMin) * 60000); }
 
 /* ================= modal list (Inputs / Network / choices) ================= */
 var mstack = [], pItems = [], pIdx = 0;
@@ -377,13 +406,13 @@ function qrOpen(){
     qrPoll = setInterval(function(){ refreshPhotos(function(ch){ if (ch) { toast(photos.length + ' photos in the gallery'); if (settingsOn) renderCat(false); } }); }, 3000);
   });
 }
-function qrClose(){ clearInterval(qrPoll); mpop('qr'); $('qrm').className = ''; refreshPhotos(function(){ if (settingsOn) renderCat(false); if (!document.body.className) bgApply(true); }); }
+function qrClose(){ clearInterval(qrPoll); mpop('qr'); $('qrm').className = ''; refreshPhotos(function(){ if (settingsOn) renderCat(false); if (!SETMODE && !hasBg()) bgApply(true); }); }
 
 /* ================= LG settings access ================= */
-var LGC = {};
+var LGC = {}, LGD = {};
 function lgLoad(cat, keys, cb){
   api('/api/lg/get?cat=' + cat + '&keys=' + keys.join(','), function(err, j){
-    if (j && j.settings) LGC[cat] = j.settings; else if (!LGC[cat]) LGC[cat] = {};
+    if (j && j.settings) { LGC[cat] = j.settings; LGD[cat] = j.dimension || {}; } else if (!LGC[cat]) LGC[cat] = {};
     cb();
   });
 }
@@ -395,9 +424,10 @@ function lgSet(cat, key, val, after){
     if (after) after();
   });
 }
+function lgHas(cat, key){ return !!LGC[cat] && LGC[cat][key] !== undefined; }
 
 /* ================= Settings screen ================= */
-var settingsOn = false, cats = [], catIdx = 0, sArea = 'cats', sRows = [], sR = 0, sC = 0, setY = 0;
+var settingsOn = false, cats = [], catIdx = 0, sArea = 'cats', sRows = [], sR = 0, sC = 0, setY = 0, catY = 0;
 var ICON = {
   home: '<svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg>',
   cloud: '<svg viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.5 1.5A3.5 3.5 0 0 1 17 18z"/></svg>',
@@ -407,21 +437,44 @@ var ICON = {
   power: '<svg viewBox="0 0 24 24"><path d="M12 3v9M6.5 6.5a8 8 0 1 0 11 0"/></svg>',
   net: '<svg viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/></svg>',
   info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>',
-  grid: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>'
+  grid: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>',
+  shield: '<svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>',
+  block: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>',
+  hdmi: '<svg viewBox="0 0 24 24"><path d="M4 8h16v6l-3 3H7l-3-3zM9 11h6"/></svg>',
+  remote: '<svg viewBox="0 0 24 24"><rect x="8" y="2.5" width="8" height="19" rx="3"/><circle cx="12" cy="8" r="1.6"/><path d="M12 12.5v.5M12 16v.5"/></svg>',
+  access: '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M5 9l7 1.5L19 9M12 10.5V15l-3 5.5M12 15l3 5.5"/></svg>'
 };
 function tgl(label, desc, get, set){ return {type: 'toggle', label: label, desc: desc, get: get, set: set}; }
 function chc(label, desc, opts, get, set){ return {type: 'choice', label: label, desc: desc, opts: opts, get: get, set: set}; }
 function sld(label, desc, min, max, step, get, set){ return {type: 'slider', label: label, desc: desc, min: min, max: max, step: step, get: get, set: set}; }
 function inf(label, value, desc){ return {type: 'info', label: label, value: value, desc: desc}; }
 function act(label, desc, run, val){ return {type: 'action', label: label, desc: desc, run: run, val: val}; }
-function lgTgl(cat, key, label, desc){ return tgl(label, desc, function(){ return (LGC[cat] || {})[key] === 'on'; }, function(b){ lgSet(cat, key, b ? 'on' : 'off'); }); }
-function lgChc(cat, key, label, desc, opts, reload){ return chc(label, desc, opts, function(){ return (LGC[cat] || {})[key]; }, function(v){ lgSet(cat, key, v, reload ? function(){ renderCat(true); } : null); }); }
+function head(label){ return {type: 'head', label: label}; }
+function optsOf(it){ return typeof it.opts === 'function' ? it.opts() : it.opts; }
+// rows backed by LG's settings service; a row disappears when the TV does not have that key for the current input / picture mode
+function lgTgl(cat, key, label, desc, onv, offv){ onv = onv || 'on'; offv = offv || 'off';
+  var it = tgl(label, desc, function(){ return String((LGC[cat] || {})[key]) === onv; }, function(b){ lgSet(cat, key, b ? onv : offv); }); it.show = function(){ return lgHas(cat, key); }; return it; }
+function lgChc(cat, key, label, desc, opts, reload){
+  var it = chc(label, desc, opts, function(){ return (LGC[cat] || {})[key]; }, function(v){ lgSet(cat, key, v, reload ? function(){ renderCat(true); } : null); }); it.show = function(){ return lgHas(cat, key); }; return it; }
 function lgSld(cat, key, label, desc, min, max, step){
   var it = sld(label, desc, min, max, step, function(){ return parseInt((LGC[cat] || {})[key] || '0', 10); }, function(v){ clearTimeout(it._t); it._t = setTimeout(function(){ lgSet(cat, key, v); }, 350); });
-  it.local = function(v){ (LGC[cat] = LGC[cat] || {})[key] = String(v); };
-  return it;
+  it.local = function(v){ (LGC[cat] = LGC[cat] || {})[key] = String(v); }; it.show = function(){ return lgHas(cat, key); }; return it;
 }
+var OFFON = [['off','Off'],['on','On']];
+var LEVELS = [['off','Off'],['low','Low'],['medium','Medium'],['high','High']];
 var MINS = function(v){ return v + ' min'; };
+var PICMODES = {vivid:'Vivid', normal:'Standard', eco:'Eco', cinema:'Cinema', sports:'Sports', game:'Game', photo:'Photo', expert1:'Expert (bright room)', expert2:'Expert (dark room)',
+  hdrVivid:'HDR Vivid', hdrStandard:'HDR Standard', hdrCinemaBright:'HDR Cinema Bright', hdrCinema:'HDR Cinema', hdrGame:'HDR Game', hdrEffect:'HDR Effect', technicolor:'Technicolor', hdrTechnicolor:'HDR Technicolor',
+  dolbyHdrVivid:'Dolby Vision Vivid', dolbyHdrStandard:'Dolby Vision Standard', dolbyHdrCinemaBright:'Dolby Vision Bright', dolbyHdrCinema:'Dolby Vision Dark', dolbyHdrGame:'Dolby Vision Game'};
+function picModes(){
+  var cur = (LGC.picture || {}).pictureMode || 'normal', fam = /^dolby/.test(cur) ? /^dolby/ : /^(hdr|technicolor)/.test(cur) ? /^(hdr|technicolor)/ : null, out = [];
+  for (var k in PICMODES) { var isH = /^(hdr|technicolor|dolby)/.test(k); if (fam ? fam.test(k) : !isH) out.push([k, PICMODES[k]]); }
+  if (!out.length) out.push([cur, cur]); return out;
+}
+var SOUNDOUT = [['tv_speaker','TV speaker'],['external_arc','HDMI ARC / eARC'],['external_optical','Optical'],['bt_soundbar','Bluetooth soundbar'],['lineout','Line out'],['headphone','Headphones'],['bt_audio','Bluetooth device'],['tv_external_speaker','TV speaker + external'],['tv_speaker_headphone','TV speaker + headphones']];
+function fmtDate2(sec){ if (!sec) return 'never'; var d = new Date(sec * 1000); return MONS[d.getMonth()].slice(0, 3) + ' ' + d.getDate() + ', ' + d.getFullYear(); }
+function num(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
 cats = [
   {id: 'home', name: 'Home & Screensaver', icon: 'home', title: 'Home & Screensaver', desc: 'Background photos, the idle (AFK) screen and the clock.', build: function(){ return [
     tgl('Photo background on Home', 'Uses the photos in your gallery', function(){ return S.bg.on; }, function(b){ setPath('bg.on', b); }),
@@ -441,48 +494,141 @@ cats = [
     inf('Showing', function(){ return wx ? wx.place : 'loading…'; }),
     act('Refresh now', '', function(){ lsSet('loc', null); wxLoad(true); toast('Updating weather…'); })
   ]; }},
-  {id: 'gallery', name: 'Photo gallery', icon: 'image', title: 'Photo gallery', desc: 'Photos used for the Home background and screensaver.', build: function(){ return [
-    act('Add photos from your phone', 'Shows a QR code to scan', function(){ qrOpen(); }, 'QR'),
+  {id: 'gallery', name: 'Photo gallery', icon: 'image', title: 'Photo gallery', desc: 'Photos used for the Home background and screensaver. Choose a photo to adjust its framing.', build: function(){ return [
+    act('Add photos from your phone', 'Shows a QR code to scan. The phone page can also adjust framing and edit the ad-block lists.', function(){ qrOpen(); }, 'QR'),
     inf('Photos in gallery', function(){ return String(photos.length); }),
     tgl('Photo background on Home', '', function(){ return S.bg.on; }, function(b){ setPath('bg.on', b); }),
     tgl('Show photos in screensaver', '', function(){ return S.saver.photos; }, function(b){ setPath('saver.photos', b); }),
     act('Reset phone link', 'Old QR codes stop working', function(){ panelOpen('Reset the phone link?', [['Yes, reset it', '', function(){ panelClose(); apiPost('/api/resettoken', '', function(){ toast('Phone link reset'); }); }], ['Cancel', '', panelClose]]); }),
     {type: 'thumbs'}
   ]; }},
-  {id: 'picture', name: 'Picture', icon: 'pic', title: 'Picture', desc: 'Applies to the current input and picture mode.', lg: [['picture', ['pictureMode','backlight','contrast','brightness','color','sharpness','energySaving']]], build: function(){ return [
-    lgChc('picture', 'pictureMode', 'Picture mode', '', [['vivid','Vivid'],['normal','Standard'],['eco','Eco'],['cinema','Cinema'],['sports','Sports'],['game','Game']], true),
-    lgSld('picture', 'backlight', 'Backlight', '', 0, 100, 5), lgSld('picture', 'contrast', 'Contrast', '', 0, 100, 5),
-    lgSld('picture', 'brightness', 'Brightness', '', 0, 100, 5), lgSld('picture', 'color', 'Color', '', 0, 100, 5), lgSld('picture', 'sharpness', 'Sharpness', '', 0, 50, 5),
-    lgChc('picture', 'energySaving', 'Energy saving', '', [['off','Off'],['min','Minimum'],['med','Medium'],['max','Maximum'],['auto','Auto']])
+  {id: 'picture', name: 'Picture', icon: 'pic', title: 'Picture', desc: 'Applies to what is on screen now: the current input and picture mode.',
+    lg: [['picture', ['pictureMode','backlight','contrast','brightness','sharpness','color','tint','colorTemperature','energySaving','dynamicContrast','localDimming','peakBrightness','superResolution','noiseReduction','mpegNoiseReduction','gamma','colorGamut','blackLevel','dynamicColor','hdrDynamicToneMapping','truMotionMode','truMotionJudder','truMotionBlur','motionEyeCare','eyeComfortMode','aspectRatio']]], build: function(){ return [
+    lgChc('picture', 'pictureMode', 'Picture mode', '', picModes, true),
+    lgSld('picture', 'backlight', 'Backlight', '', 0, 100, 1), lgSld('picture', 'contrast', 'Contrast', '', 0, 100, 1),
+    lgSld('picture', 'brightness', 'Brightness', '', 0, 100, 1), lgSld('picture', 'sharpness', 'Sharpness', '', 0, 50, 1),
+    lgSld('picture', 'color', 'Color', '', 0, 100, 1), lgSld('picture', 'tint', 'Tint', '', -50, 50, 1), lgSld('picture', 'colorTemperature', 'Color temperature', 'Negative = warmer, positive = cooler', -50, 50, 1),
+    lgChc('picture', 'energySaving', 'Energy saving', '', [['off','Off'],['auto','Auto'],['min','Minimum'],['med','Medium'],['max','Maximum'],['screen_off','Screen off']]),
+    head('Picture options'),
+    lgChc('picture', 'dynamicContrast', 'Dynamic contrast', '', LEVELS), lgChc('picture', 'localDimming', 'Local dimming', '', LEVELS), lgChc('picture', 'peakBrightness', 'Peak brightness', '', LEVELS),
+    lgChc('picture', 'superResolution', 'Super resolution', '', LEVELS), lgChc('picture', 'noiseReduction', 'Noise reduction', '', [['off','Off'],['low','Low'],['medium','Medium'],['high','High'],['auto','Auto']]),
+    lgChc('picture', 'mpegNoiseReduction', 'MPEG noise reduction', '', [['off','Off'],['low','Low'],['medium','Medium'],['high','High'],['auto','Auto']]),
+    lgChc('picture', 'gamma', 'Gamma', '', [['low','Low'],['medium','Medium'],['high1','High 1'],['high2','High 2']]), lgChc('picture', 'colorGamut', 'Color gamut', '', [['auto','Auto'],['wide','Wide'],['extended','Extended'],['srgb','sRGB']]),
+    lgChc('picture', 'blackLevel', 'Black level', '', [['auto','Auto'],['low','Low'],['high','High']]), lgChc('picture', 'dynamicColor', 'Dynamic color', '', LEVELS),
+    lgChc('picture', 'hdrDynamicToneMapping', 'HDR tone mapping', '', [['on','On'],['off','Off'],['HGIG','HGIG']]),
+    lgChc('picture', 'truMotionMode', 'TruMotion', 'Motion smoothing', [['off','Off'],['smooth','Smooth'],['clear','Clear'],['user','User']]),
+    lgSld('picture', 'truMotionJudder', 'De-judder', '', 0, 10, 1), lgSld('picture', 'truMotionBlur', 'De-blur', '', 0, 10, 1),
+    lgTgl('picture', 'motionEyeCare', 'Motion eye care', ''), lgTgl('picture', 'eyeComfortMode', 'Eye comfort mode', 'Warmer, easier on the eyes at night'),
+    lgChc('picture', 'aspectRatio', 'Aspect ratio', '', [['16x9','16:9'],['original','Original'],['full_wide','Full wide'],['4x3','4:3'],['14x9','14:9'],['zoom','Zoom'],['zoom2','Zoom 2'],['cinema_zoom','Cinema zoom'],['21x9','21:9']])
   ]; }},
-  {id: 'sound', name: 'Sound', icon: 'sound', title: 'Sound', desc: 'TV speaker sound options.', lg: [['sound', ['soundMode','clearVoice','autoVolume','virtualSurround']]], build: function(){ return [
-    lgChc('sound', 'soundMode', 'Sound mode', '', [['standard','Standard'],['cinema','Cinema'],['clearVoice','Clear Voice'],['sports','Sports'],['music','Music'],['game','Game']]),
-    lgTgl('sound', 'clearVoice', 'Clear Voice', 'Makes speech easier to hear'), lgTgl('sound', 'autoVolume', 'Auto volume', 'Evens out loud ads and quiet scenes'),
-    lgTgl('sound', 'virtualSurround', 'Virtual surround', '')
+  {id: 'sound', name: 'Sound', icon: 'sound', title: 'Sound', desc: 'TV speaker and audio output options.',
+    lg: [['sound', ['soundMode','clearVoice','autoVolume','virtualSurround','soundOutput','audioBalance','soundOptimizer','soundOutputDigital','hdmiArcMode','eArcSupport','lgSoundSync','startupSound','tvPowerSound']]], build: function(){ return [
+    lgChc('sound', 'soundMode', 'Sound mode', '', [['standard','Standard'],['movie','Cinema'],['news','Clear voice / News'],['sports','Sports'],['music','Music'],['game','Game'],['asc','AI sound'],['bass','Bass']]),
+    lgChc('sound', 'clearVoice', 'Clear Voice', 'Makes speech easier to hear', [['off','Off'],['level1','Level 1'],['level2','Level 2'],['level3','Level 3']]),
+    lgTgl('sound', 'autoVolume', 'Auto volume', 'Evens out loud ads and quiet scenes'), lgTgl('sound', 'virtualSurround', 'Virtual surround', ''),
+    lgSld('sound', 'audioBalance', 'Balance', 'Left / right', -50, 50, 1),
+    lgChc('sound', 'soundOutput', 'Sound output', 'Where the sound plays. If the TV goes silent, pick TV speaker.', SOUNDOUT),
+    lgChc('sound', 'soundOptimizer', 'TV placement', '', [['normal','Normal'],['stand','On a stand'],['wall_mount','Wall mounted']]),
+    head('Digital audio'),
+    lgChc('sound', 'soundOutputDigital', 'Digital sound output', '', [['pcm','PCM'],['auto','Auto'],['passThrough','Pass-through']]),
+    lgTgl('sound', 'hdmiArcMode', 'HDMI ARC', ''), lgTgl('sound', 'eArcSupport', 'eARC', ''), lgTgl('sound', 'lgSoundSync', 'LG Sound Sync', ''),
+    lgTgl('sound', 'startupSound', 'Startup sound', ''), lgTgl('sound', 'tvPowerSound', 'Power-on sound', '')
   ]; }},
-  {id: 'power', name: 'Power & startup', icon: 'power', title: 'Power & startup', desc: '', lg: [['option', ['quickStartMode','standByLight','logoLight']], ['general', ['homeAutoLaunch']], ['time', ['noSignalAutoOff']]], build: function(){ return [
-    lgTgl('option', 'quickStartMode', 'Quick Start', 'Turns on faster; uses a little standby power'),
+  {id: 'power', name: 'Power & timers', icon: 'power', title: 'Power & timers', desc: '',
+    lg: [['option', ['quickStartMode','standByLight','logoLight','powerOnLight']], ['general', ['homeAutoLaunch']], ['time', ['autoClock','daylightSaving','sleepTimer','noOperationAutoOff','automaticStandBy','noSignalAutoOff','timeZone']]], build: function(){ var tz = (LGC.time || {}).timeZone; return [
+    lgTgl('option', 'quickStartMode', 'Quick Start', 'Turns on in a couple of seconds instead of a full start. Uses a little more power while off. On is recommended: it works with this launcher and makes no difference to LG updates being blocked.'),
     lgTgl('general', 'homeAutoLaunch', 'Show Home when the TV turns on', ''),
-    lgTgl('option', 'standByLight', 'Standby light', ''), lgTgl('option', 'logoLight', 'LG logo light', ''),
+    lgTgl('option', 'standByLight', 'Standby light', ''), lgChc('option', 'logoLight', 'LG logo light', '', LEVELS), lgTgl('option', 'powerOnLight', 'Power-on light', ''),
+    head('Timers'),
+    lgChc('time', 'sleepTimer', 'Sleep timer', 'Turns the TV off after this time', [['off','Off'],['10','10 min'],['20','20 min'],['30','30 min'],['60','1 hour'],['90','1.5 hours'],['120','2 hours'],['180','3 hours'],['240','4 hours']]),
+    lgChc('time', 'noOperationAutoOff', 'Turn off when nobody uses the remote', 'In hours', [['off','Off'],['3','3 h'],['6','6 h'],['12','12 h'],['24','24 h']]),
+    lgChc('time', 'automaticStandBy', 'Automatic standby', 'In hours without any activity', [['0','Off'],['2','2 h'],['4','4 h'],['6','6 h'],['8','8 h']]),
     lgTgl('time', 'noSignalAutoOff', 'Turn off when there is no signal', ''),
+    head('Clock'),
+    lgTgl('time', 'autoClock', 'Set the clock automatically', ''), lgChc('time', 'daylightSaving', 'Daylight saving time', '', [['auto','Automatic'],['on','On'],['off','Off']]),
+    inf('Time zone', function(){ return tz && tz.City ? tz.City + ' (' + (tz.Description || '') + ')' : '–'; }, 'Change the time zone in LG Settings (legacy) if you move.'),
+    head('Restart'),
     act('Restart TV', 'Reboots; Home is back in about a minute', function(){ panelOpen('Restart the TV?', [['Restart now', '', function(){ panelClose(); apiPost('/api/reboot', '', function(){ toast('Restarting…'); }); }], ['Cancel', '', panelClose]]); })
   ]; }},
-  {id: 'net', name: 'Network', icon: 'net', title: 'Network', desc: '', info: '/api/net', build: function(){ var j = this.data || {}, w = j.wired || {}, f = j.wifi || {}; return [
+  {id: 'inputs', name: 'Inputs & HDMI', icon: 'hdmi', title: 'Inputs & HDMI', desc: 'Per-port picture format and device control.',
+    lg: [['other', ['uhdDeepColorHDMI1','uhdDeepColorHDMI2','uhdDeepColorHDMI3','uhdDeepColorHDMI4','gameOptimizationHDMI1','gameOptimizationHDMI2','gameOptimizationHDMI3','gameOptimizationHDMI4','simplinkEnable','simplinkAutoPowerOn']],
+         ['sound', ['inputAudioFormatHDMI1','inputAudioFormatHDMI2','inputAudioFormatHDMI3','inputAudioFormatHDMI4']]], build: function(){
+    var o = [head('HDMI ULTRA HD Deep Colour (needed for 4K HDR; turn off if a device has no picture)')], i, n;
+    for (i = 1; i <= 4; i++) o.push(lgTgl('other', 'uhdDeepColorHDMI' + i, 'HDMI ' + i + ' Deep Colour', ''));
+    o.push(head('Game optimization (low delay)')); for (i = 1; i <= 4; i++) o.push(lgTgl('other', 'gameOptimizationHDMI' + i, 'HDMI ' + i + ' game optimization', ''));
+    o.push(head('HDMI audio format')); for (i = 1; i <= 4; i++) o.push(lgChc('sound', 'inputAudioFormatHDMI' + i, 'HDMI ' + i + ' audio', '', [['pcm','PCM'],['bitstream','Bitstream']]));
+    o.push(head('Device control (SIMPLINK / HDMI-CEC)'));
+    o.push(lgTgl('other', 'simplinkEnable', 'SIMPLINK', 'Lets connected devices turn the TV on and control it'), lgTgl('other', 'simplinkAutoPowerOn', 'SIMPLINK auto power on', ''));
+    return o; }},
+  {id: 'remote', name: 'Remote & pointer', icon: 'remote', title: 'Remote & pointer', desc: 'The Settings button and the Magic Remote pointer. LG has no real off switch for the pointer, so the first option asks the remote itself to stay quiet (experimental) and the rest tune it.', info: '/api/gear',
+    lg: [['option', ['pointerSpeed','pointerSize','pointerShape','pointerAlignment']], ['other', ['cursorAutoRemover']]], build: function(){ var self = this; return [
+    chc('Settings button opens', 'The gear button on the remote', [['ours','This Settings screen'],['lg','LG’s quick panel']], function(){ return (self.data && self.data.gear) || 'ours'; }, function(v){ self.data = self.data || {}; self.data.gear = v; api('/api/gear?v=' + v, function(){ toast(v === 'ours' ? 'The Settings button now opens this screen' : 'The Settings button opens LG’s panel again'); }); }),
+    tgl('Back from an app returns to the previous app', 'When an app quits on Back, open the app or input you were in before it. With nothing before it you land on Home, as usual.', function(){ return !(self.data && self.data.chain === 'off'); }, function(b){ self.data = self.data || {}; self.data.chain = b ? 'on' : 'off'; api('/api/backchain?v=' + (b ? 'on' : 'off'), function(){ toast(b ? 'Back now returns to the previous app' : 'Back from an app goes to Home again'); }); }),
+    tgl('Pointer only when I shake the remote', 'Experimental. Asks the Magic Remote to show the arrow only after a shake, not on every movement. Applied again by itself each time the remote wakes up. Press a button on the remote first, then switch this on.', function(){ return !!(self.data && self.data.pointer === 'off'); }, function(b){ self.data = self.data || {}; self.data.pointer = b ? 'off' : 'on'; api('/api/pointer?v=' + (b ? 'off' : 'on'), function(err, j){ toast((j && j.msg) || (err ? 'Could not reach the TV' : 'Done')); }, 25000); }),
+    tgl('Hide the pointer on Home and in Settings', 'Asks the browser not to draw an arrow on Home and in Settings. LG draws its own pointer on top, so it may still appear.', function(){ return !!S.ui.hideCursor; }, function(b){ setPath('ui.hideCursor', b); }),
+    head('LG pointer options'),
+    lgChc('option', 'pointerSpeed', 'Pointer speed', '', [['slow','Slow'],['normal','Normal'],['fast','Fast']]), lgChc('option', 'pointerSize', 'Pointer size', '', [['small','Small'],['medium','Medium'],['large','Large']]),
+    lgChc('option', 'pointerShape', 'Pointer shape', '', [['a','Shape A'],['b','Shape B'],['c','Shape C'],['d','Shape D']]), lgTgl('option', 'pointerAlignment', 'Pointer alignment', 'Keeps the pointer on the item you selected with the arrow keys'),
+    lgTgl('other', 'cursorAutoRemover', 'Hide the pointer after a few seconds', 'LG hides the pointer by itself when you stop moving the remote')
+  ]; }},
+  {id: 'access', name: 'Accessibility', icon: 'access', title: 'Accessibility', desc: '',
+    lg: [['option', ['highContrast','audioGuidance','audioGuidanceSpeed','audioGuidanceVolume','audioGuidancePitch','menuTransparency','animationGuide','baloonHelp','focusedItemEnlarged']], ['sound', ['audioDescription','visualImpaired']], ['caption', ['captionEnable','hardOfHearing']]], build: function(){ return [
+    lgTgl('caption', 'captionEnable', 'Subtitles / captions', 'Show captions when the program has them'), lgTgl('caption', 'hardOfHearing', 'Captions for the hard of hearing', ''),
+    head('Vision'),
+    lgTgl('option', 'highContrast', 'High contrast', ''), lgTgl('option', 'focusedItemEnlarged', 'Enlarge the selected item', ''), lgTgl('option', 'menuTransparency', 'Menu transparency', ''),
+    lgTgl('option', 'audioGuidance', 'Audio guidance', 'Reads menus out loud'), lgChc('option', 'audioGuidanceSpeed', 'Audio guidance speed', '', [['verySlow','Very slow'],['slow','Slow'],['medium','Medium'],['fast','Fast'],['veryFast','Very fast']]),
+    lgChc('option', 'audioGuidanceVolume', 'Audio guidance volume', '', [['veryLow','Very low'],['low','Low'],['medium','Medium'],['high','High'],['veryHigh','Very high']]),
+    lgChc('option', 'audioGuidancePitch', 'Audio guidance pitch', '', [['veryLow','Very low'],['low','Low'],['medium','Medium'],['high','High'],['veryHigh','Very high']]),
+    lgTgl('sound', 'audioDescription', 'Audio description', 'Narration of what happens on screen'), lgTgl('sound', 'visualImpaired', 'Audio for the visually impaired', ''),
+    head('Help'), lgTgl('option', 'animationGuide', 'Animation guide', ''), lgTgl('option', 'baloonHelp', 'Help balloons', '')
+  ]; }},
+  {id: 'net', name: 'Network', icon: 'net', title: 'Network', desc: '', info: '/api/net', lg: [['network', ['wolwowlOnOff','bleAdvertisingOnOff','allowMobileDeviceAccess']]], build: function(){ var j = this.data || {}, w = j.wired || {}, f = j.wifi || {}; return [
     inf('Connection', function(){ return w.state === 'connected' ? 'Ethernet' : f.state === 'connected' ? 'Wi-Fi' : 'Offline'; }),
     inf('IP address', function(){ return w.ipAddress || f.ipAddress || '–'; }),
     inf('Wi-Fi network', function(){ return f.state === 'connected' ? (f.ssid || 'connected') : '–'; }),
     inf('DNS', function(){ return w.dns1 || f.dns1 || '–'; }),
     inf('Internet', function(){ return j.isInternetConnectionAvailable ? 'available' : 'not available'; }),
-    act('Join a Wi-Fi network (LG)', 'Opens the LG network settings', function(){ launch('com.palm.app.settings'); })
+    lgTgl('network', 'wolwowlOnOff', 'Turn on with a network signal', 'Wake on LAN / Wi-Fi: lets your phone or computer switch the TV on', 'true', 'false'),
+    lgTgl('network', 'bleAdvertisingOnOff', 'Bluetooth advertising', 'Lets nearby phones find the TV'),
+    lgTgl('network', 'allowMobileDeviceAccess', 'Allow mobile devices to connect', '', 'true', 'false'),
+    act('Join a Wi-Fi network (LG Settings)', 'Opens LG’s own Settings for Wi-Fi setup', function(){ launch('com.palm.app.settings'); })
   ]; }},
-  {id: 'about', name: 'About this TV', icon: 'info', title: 'About this TV', desc: '', info: '/api/sysinfo', build: function(){ var j = this.data || {}, lg = j.lg || {}, m = j.mem || {}; return [
+  {id: 'block', name: 'Ad blocking', icon: 'block', title: 'Ad blocking', desc: 'Pi-hole style: names on these lists are made unreachable for every app on the TV. A name is never blocked if it is on the always-allowed list.', info: '/api/block', build: function(){
+    var self = this, d = this.data || {}, lists = d.lists || [], out = [];
+    out.push(inf('Names blocked right now', num(d.blocked || 0), 'Each name lookup takes a few milliseconds longer per thousand names.'));
+    out.push(head('Block lists'));
+    lists.forEach(function(l){
+      var sub = l.desc + '  (' + num(l.count) + ' names' + (l.kind === 'remote' ? (l.stamp ? ', updated ' + fmtDate2(l.stamp) : ', not downloaded yet') : '') + ')';
+      out.push(tgl(l.name, sub, function(){ return l.on; }, function(b){ l.on = b; toast(b ? 'Turning on ' + l.name + '…' : 'Turning off ' + l.name + '…');
+        apiPost('/api/block/set?id=' + l.id + '&v=' + (b ? 'on' : 'off'), '', function(err, j){ if (err || !j || !j.lists) { toast('Could not change that'); } else { self.data = j; toast('Now blocking ' + num(j.blocked) + ' names'); } if (settingsOn) renderCat(false); }, 90000); }));
+    });
+    out.push(head('Maintenance'));
+    out.push(act('Update the downloaded lists now', 'The TV also refreshes them by itself every week. Takes about half a minute.', function(){ apiPost('/api/block/update', '', function(){ toast('Updating the lists…'); setTimeout(function(){ if (settingsOn && cats[catIdx].id === 'block') renderCat(true); }, 30000); }); }));
+    out.push(head('Your own lists'));
+    out.push(inf('Names you blocked yourself', num(d.custom || 0), 'Add or remove names from your phone: Photo gallery, Add photos from your phone, then scroll to Ad blocking.'));
+    out.push(inf('Names you always allow', num(d.allowCustom || 0), 'A name on this list is never blocked, even if a list asks for it. Use it if an app stops working.'));
+    return out; }},
+  {id: 'services', name: 'Services & privacy', icon: 'shield', title: 'Services & privacy', desc: 'Turn LG’s background services on or off. Everything here is reversible and re-applied after every restart.', info: '/api/svc', build: function(){
+    var self = this, list = this.data instanceof Array ? this.data : [], out = [], g = '';
+    list.forEach(function(s){
+      if (s.group !== g) { g = s.group; out.push(head(g)); }
+      if (s.locked) { out.push(inf(s.name, 'Always on', s.desc)); return; }
+      out.push(tgl(s.name, s.desc, function(){ return s.on; }, function(b){ s.on = b; toast((b ? 'Turning on: ' : 'Turning off: ') + s.name + '…');
+        apiPost('/api/svc/set?id=' + s.id + '&v=' + (b ? 'on' : 'off'), '', function(err, j){ if (err || !(j instanceof Array)) { toast('Could not change that'); return; } self.data = j; toast('Done'); if (settingsOn) renderCat(false); }, 60000); }));
+    });
+    if (!list.length) out.push(inf('Services', 'unavailable'));
+    return out; }},
+  {id: 'about', name: 'About & updates', icon: 'info', title: 'About & updates', desc: '', info: '/api/sysinfo', lg: [['support', ['automaticUpdate']], ['option', ['appUpdateMode']]], build: function(){ var j = this.data || {}, lg = j.lg || {}, m = j.mem || {}; return [
     inf('Model', function(){ return lg.modelName || '–'; }), inf('Firmware', function(){ return lg.firmwareVersion || '–'; }), inf('webOS SDK', function(){ return lg.sdkVersion || '–'; }),
     inf('Memory free', function(){ return (m.availMB || 0) + ' of ' + (m.totalMB || 0) + ' MB'; }), inf('Swap in use', function(){ return (m.swapUsedMB || 0) + ' MB'; }),
     inf('Running for', function(){ var s = j.uptime || 0, h = Math.floor(s / 3600), mi = Math.floor((s % 3600) / 60); return h + ' h ' + mi + ' min'; }), inf('Processes', function(){ return String(j.procs || '–'); }),
+    head('Updates are blocked on purpose'),
+    inf('Automatic system updates', function(){ return (LGC.support || {}).automaticUpdate === 'off' ? 'Off (locked)' : 'ON - will be switched off shortly'; }, 'A firmware update could remove root access and bring LG’s ads back, so this stays off and the update servers are blocked.'),
+    inf('Automatic app updates', function(){ return (LGC.option || {}).appUpdateMode === 'manual' ? 'Manual (locked)' : 'Automatic - will be switched off shortly'; }),
     inf('Home', function(){ return 'tv-debloat launcher'; }, 'Undo everything: run revert.sh from the PC, or remove /var/lib/webosbrew/init.d/zz-debloat and reboot.')
   ]; }},
-  {id: 'lgall', name: 'All LG settings', icon: 'grid', title: 'All LG settings', desc: 'Everything else (accessibility, language, support, ...) lives in LG’s own Settings app.', build: function(){ return [
-    act('Open LG Settings', '', function(){ launch('com.palm.app.settings'); })
+  {id: 'lgall', name: 'LG Settings (legacy)', icon: 'grid', title: 'LG Settings (legacy)', desc: 'Almost everything is in this screen now. LG’s own Settings app is still there for Wi-Fi setup, accounts, channel tuning and the rest.', build: function(){ return [
+    act('Open LG Settings', 'LG’s own full Settings app', function(){ launch('com.palm.app.settings'); })
   ]; }}
 ];
 
@@ -491,43 +637,58 @@ function renderCats(){
   cats.forEach(function(c, i){ var d = el('div', 'scat', ICON[c.icon] + '<span></span>'); d.lastChild.textContent = c.name; c._el = d; box.appendChild(d); });
   catClass();
 }
-function catClass(){ cats.forEach(function(c, i){ c._el.className = 'scat' + (i === catIdx ? (sArea === 'cats' ? ' foc' : ' cur') : ''); }); }
+function catClass(){
+  cats.forEach(function(c, i){ c._el.className = 'scat' + (i === catIdx ? (sArea === 'cats' ? ' foc' : ' cur') : ''); });
+  var box = $('setcatsbox'), e = cats[catIdx]._el, h = box.clientHeight, bot = e.offsetTop + e.offsetHeight, want = bot > h ? bot - h + 8 : 0;
+  catY = want; $('setcats').style.transform = want ? 'translate3d(0,' + (-want) + 'px,0)' : 'translate3d(0,0,0)';
+}
 function renderCat(reload){
   var c = cats[catIdx];
   function draw(){
     $('settitle').textContent = c.title; $('setdesc').textContent = c.desc || '';
     var box = $('setrows'); box.innerHTML = ''; sRows = [];
     var items = c.build.call(c);
-    items.forEach(function(it){ if (it.show && !it.show()) return; if (it.type === 'thumbs') { renderThumbs(box); return; } var r = rowEl(it); box.appendChild(r); sRows.push([r]); });
-    // thumbs group their cells into visual rows
-    regroupThumbs();
+    items.forEach(function(it){
+      if (it.show && !it.show()) return;
+      if (it.type === 'thumbs') { renderThumbs(box); return; }
+      var r = rowEl(it); box.appendChild(r); if (it.type !== 'head') sRows.push([r]);
+    });
+    regroupThumbs();      // thumbs group their cells into visual rows
     if (sArea === 'pane') sFocus(Math.min(sR, sRows.length - 1), sC, true);
   }
   if (reload !== false && (c.lg || c.info)) {
     $('settitle').textContent = c.title; $('setdesc').textContent = 'Loading…'; $('setrows').innerHTML = ''; sRows = [];
     var tok = ++renderCat.tok;
     var done = function(){ if (tok === renderCat.tok && settingsOn) draw(); };
-    if (c.lg) lgLoadMany(c.lg, done); else api(c.info, function(err, j){ c.data = j || {}; done(); });
+    var step2 = function(){ if (c.info) api(c.info, function(err, j){ c.data = j || {}; done(); }, 20000); else done(); };
+    if (c.lg) lgLoadMany(c.lg, step2); else step2();
   } else draw();
 }
 renderCat.tok = 0;
 function rowEl(it){
+  if (it.type === 'head') { var h = el('div', 'shead'); h.textContent = it.label; it._el = h; return h; }
   var r = el('div', 'srow' + (it.type === 'action' || it.type === 'text' ? ' act' : '')), lab = el('div', 'lab'), val = el('div', 'val');
-  lab.innerHTML = '<span></span>' + (it.desc ? '<small></small>' : ''); lab.firstChild.textContent = it.label; if (it.desc) lab.lastChild.textContent = it.desc;
+  var d = typeof it.desc === 'function' ? it.desc() : it.desc;
+  lab.innerHTML = '<span></span>' + (d ? '<small></small>' : ''); lab.firstChild.textContent = it.label; if (d) lab.lastChild.textContent = d;
   r.appendChild(lab); r.appendChild(val); r._it = it; it._el = r; paintRow(it); return r;
 }
 function paintRow(it){
   var val = it._el.lastChild, t = it.type;
   if (t === 'toggle') val.innerHTML = '<div class="tg' + (it.get() ? ' on' : '') + '"></div>';
-  else if (t === 'choice') { var v = it.get(), lab = String(v); for (var i = 0; i < it.opts.length; i++) if (String(it.opts[i][0]) === String(v)) lab = it.opts[i][1]; val.innerHTML = '<span class="ch">◀&nbsp; <b></b> &nbsp;▶</span>'; val.querySelector('b').textContent = lab; }
+  else if (t === 'choice') { var v = it.get(), lab = String(v), o = optsOf(it); for (var i = 0; i < o.length; i++) if (String(o[i][0]) === String(v)) lab = o[i][1]; val.innerHTML = '<span class="ch">◀&nbsp; <b></b> &nbsp;▶</span>'; val.querySelector('b').textContent = lab; }
   else if (t === 'slider') { var s = it.get(), pct = Math.max(0, Math.min(100, (s - it.min) * 100 / (it.max - it.min))); val.innerHTML = '<div class="sl"><i style="width:' + pct + '%"></i></div><span>' + s + '</span>'; }
   else if (t === 'info') val.textContent = typeof it.value === 'function' ? it.value() : it.value;
   else if (t === 'text') val.textContent = it.get();
   else if (t === 'action') val.textContent = it.val || '▶';
 }
+function thumbCell(n){
+  var d = el('div', 'gt'), st = Stage.make(), im = st.lastChild; d.appendChild(st);
+  im.onload = function(){ Stage.place(st, im.naturalWidth, im.naturalHeight, crops[n]); };
+  im.src = thumbUrl(n); d._it = {type: 'thumb', name: n}; return d;
+}
 function renderThumbs(box){
   var g = el('div', 'gthumbs'); box.appendChild(g);
-  photos.forEach(function(n){ var d = el('div', 'gt'), im = el('img'); im.alt = ''; im.src = thumbUrl(n); d.appendChild(im); d._it = {type: 'thumb', name: n}; g.appendChild(d); });
+  photos.forEach(function(n){ g.appendChild(thumbCell(n)); });
   if (!photos.length) { var e = el('div', 'srow', 'No photos yet. Choose “Add photos from your phone”.'); g.appendChild(e); }
   g._isThumbs = true;
 }
@@ -554,12 +715,16 @@ function openSettings(id){
   if (id) for (var i = 0; i < cats.length; i++) if (cats[i].id === id) catIdx = i;
   sArea = 'cats'; sR = sC = 0; setY = 0; $('setinner').style.transform = ''; catClass(); renderCat(true);
 }
-function closeSettings(){ settingsOn = false; mpop('settings'); $('settings').className = ''; activity(); refreshPhotos(function(){ if (!document.body.className) bgApply(true); }); }
+function closeSettings(){
+  settingsOn = false; mpop('settings'); $('settings').className = '';
+  if (SETMODE) { apiPost('/api/settings/close', ''); return; }
+  activity(); refreshPhotos(function(){ if (!hasBg()) bgApply(true); });
+}
 function adjust(it, dir){
   var t = it.type;
   if (t === 'toggle') { it.set(!it.get()); }
-  else if (t === 'choice') { var i = 0; for (var k = 0; k < it.opts.length; k++) if (String(it.opts[k][0]) === String(it.get())) i = k; i = Math.max(0, Math.min(it.opts.length - 1, i + dir)); if (String(it.opts[i][0]) === String(it.get())) return true; it.set(it.opts[i][0]); }
-  else if (t === 'slider') { var v = Math.max(it.min, Math.min(it.max, it.get() + dir * it.step)); if (v === it.get()) return true; if (it.local) it.local(v); it.set(v); }
+  else if (t === 'choice') { var o = optsOf(it), i = 0; for (var k = 0; k < o.length; k++) if (String(o[k][0]) === String(it.get())) i = k; i = Math.max(0, Math.min(o.length - 1, i + dir)); if (String(o[i][0]) === String(it.get())) return true; it.set(o[i][0]); }
+  else if (t === 'slider') { var v = Math.max(it.min, Math.min(it.max, it.get() + dir * it.step * (adjust.mult || 1))); if (v === it.get()) return true; if (it.local) it.local(v); it.set(v); }
   else return false;
   paintRow(it); return true;
 }
@@ -572,6 +737,7 @@ function settingsKey(k, e){
     return;
   }
   var cell = sRows[sR] && sRows[sR][sC], it = cell && cell._it, multi = sRows[sR] && sRows[sR].length > 1 || (it && it.type === 'thumb');
+  adjust.mult = (k === 37 || k === 39) ? boost(k) : 1;
   if (k === 38) { if (sR > 0) { var nr = sR - 1, x = cell.getBoundingClientRect().left, b = 0, bd = 1e9; for (var i = 0; i < sRows[nr].length; i++) { var d = Math.abs(sRows[nr][i].getBoundingClientRect().left - x); if (d < bd) { bd = d; b = i; } } sFocus(nr, b); } }
   else if (k === 40) { if (sR < sRows.length - 1) { var nr2 = sR + 1, x2 = cell.getBoundingClientRect().left, b2 = 0, bd2 = 1e9; for (var j = 0; j < sRows[nr2].length; j++) { var d2 = Math.abs(sRows[nr2][j].getBoundingClientRect().left - x2); if (d2 < bd2) { bd2 = d2; b2 = j; } } sFocus(nr2, b2); } }
   else if (k === 37) { if (multi) { if (sC > 0) sFocus(sR, sC - 1); else setArea('cats'); } else if (it.type === 'choice' || it.type === 'slider') adjust(it, -1); else setArea('cats'); }
@@ -586,15 +752,83 @@ function settingsKey(k, e){
 }
 function thumbMenu(name){
   panelOpen('Photo', [
-    ['Use as Home background now', '', function(){ panelClose(); var i = photos.indexOf(name); if (i >= 0) { S.bg.on = true; saveSettings(); bgShow(i); toast('Background changed'); } }],
+    ['Adjust framing', 'move / zoom, see Home on top', function(){ panelClose(); edOpen(name); }],
+    ['Use as Home background now', '', function(){ panelClose(); var i = photos.indexOf(name); if (i >= 0 && !SETMODE) { S.bg.on = true; saveSettings(); bgShow(i); toast('Background changed'); } else toast('Close Settings to see it'); }],
     ['Delete this photo', '', function(){ panelOpen('Delete this photo?', [['Yes, delete', '', function(){ panelClose();
-        api('/api/delete?name=' + encodeURIComponent(name), function(err){ if (err) return toast('Could not delete'); photos = photos.filter(function(n){ return n !== name; }); if (bgIx >= photos.length) bgIx = 0; renderCat(false); toast('Photo deleted'); if (!photos.length) bgApply(true); }); }], ['Cancel', '', panelClose]]); }],
+        api('/api/delete?name=' + encodeURIComponent(name), function(err){ if (err) return toast('Could not delete'); photos = photos.filter(function(n){ return n !== name; }); delete crops[name]; if (bgIx >= photos.length) bgIx = 0; renderCat(false); toast('Photo deleted'); if (!photos.length && !SETMODE) bgApply(true); }); }], ['Cancel', '', panelClose]]); }],
     ['Cancel', '', panelClose]]);
-  // the first panel is replaced by the confirmation (panelOpen resets the list), so keep the stack consistent
 }
+
+/* ================= photo framing editor (TV remote) ================= */
+// The photo fills the screen exactly as it will on Home / the screensaver. Arrow keys move the view, OK switches to zoom,
+// Back opens the menu. A see-through copy of Home lies on top so you can see what the clock and the app row will cover.
+var ed = null;
+function ghostBuild(done){
+  function go(){
+    var g = $('ghost'); g.innerHTML = '';
+    var v = $('view').cloneNode(true); v.style.transform = 'none';
+    [].forEach.call(v.querySelectorAll('.foc'), function(n){ n.className = n.className.replace(' foc', ''); });
+    g.appendChild(v); done();
+  }
+  if (!apps.length) { loadApps(function(){ lastT = ''; tick(); wxRender(); go(); }); } else { tick(); go(); }
+}
+function edOpen(name){
+  var c0 = crops[name] || null;
+  ed = {name: name, c: Stage.norm(c0 && c0.x !== undefined ? c0 : Stage.auto(c0)), orig: c0, mode: 'move', ghost: true, im: null, nw: 0, nh: 0, st: null};
+  ed.c.a = c0 && c0.a; ed.c.e = c0 && c0.e;
+  $('edstage').innerHTML = ''; $('edinfo').textContent = 'Loading…'; $('editor').className = 'on'; mpush('editor'); edMode();
+  ghostBuild(function(){ cls($('ghost'), 'on', ed && ed.ghost); });
+  var im = new Image(); if (!MOCK) im.crossOrigin = 'anonymous';
+  im.onload = function(){
+    if (!ed || ed.name !== name) return;
+    var st = Stage.make(); st.lastChild.src = im.src; $('edstage').appendChild(st);
+    ed.im = im; ed.nw = im.naturalWidth; ed.nh = im.naturalHeight; ed.st = st; ed.c = Stage.norm(ed.c, ed.nw, ed.nh);
+    if (!ed.c.e && !MOCK) { var e0 = Stage.sample(im, 5); if (e0) ed.c.e = e0; }      // measured now so the edge fade is visible while you move the photo
+    edRender();
+  };
+  im.onerror = function(){ toast('Could not load the photo'); edClose(); };
+  im.src = httpPhotoUrl(name);
+}
+function edMode(){ $('edmode').textContent = ed && ed.mode === 'zoom' ? 'Zoom: ▲ in  ▼ out' : 'Move'; }
+function edRender(){
+  if (!ed || !ed.st) return;
+  Stage.place(ed.st, ed.nw, ed.nh, ed.c);
+  $('edinfo').textContent = 'Zoom ' + ed.c.z.toFixed(2) + '×   ·   ' + Math.round(ed.c.x * 100) + '% across, ' + Math.round(ed.c.y * 100) + '% down';
+}
+function edKey(k){
+  if (k === 461 || k === 27 || k === 8) { edMenu(); return; }
+  if (k === 13) { ed.mode = ed.mode === 'move' ? 'zoom' : 'move'; edMode(); return; }
+  var d = k === 37 ? [-1, 0] : k === 39 ? [1, 0] : k === 38 ? [0, -1] : k === 40 ? [0, 1] : null;
+  if (!d || !ed.st) return;
+  var m = boost(k), c = ed.c;
+  if (ed.mode === 'zoom' && d[1]) { c.z = Stage.clamp(c.z * (d[1] < 0 ? 1 + 0.035 * m : 1 / (1 + 0.035 * m)), Stage.minZoom(ed.nw, ed.nh), 3.5); }
+  else { var g = Stage.geom(ed.nw, ed.nh, c); c.x = Stage.clamp(c.x + d[0] * 0.012 * m / g.w, 0, 1); c.y = Stage.clamp(c.y + d[1] * 0.012 * m / g.h, 0, 1); }
+  edRender();
+}
+function edMenu(){
+  panelOpen('Photo framing', [
+    ['Save', '', function(){ panelClose(); edSave(); }],
+    ['Keep editing', '', panelClose],
+    ['Home overlay', ed.ghost ? 'showing' : 'hidden', function(){ ed.ghost = !ed.ghost; cls($('ghost'), 'on', ed.ghost); panelClose(); }],
+    ['Reset to automatic', '', function(){ var a = Stage.auto(ed.c); ed.c.x = a.x; ed.c.y = a.y; ed.c.z = 1; delete ed.c.e; panelClose(); edRender(); }],
+    ['Discard changes', '', function(){ panelClose(); edClose(); }]]);
+}
+function edSave(){
+  var name = ed.name, c = {x: Math.round(ed.c.x * 1000) / 1000, y: Math.round(ed.c.y * 1000) / 1000, z: Math.round(ed.c.z * 1000) / 1000};
+  if (ed.c.a) c.a = ed.c.a;
+  var e = (!MOCK && ed.im) ? Stage.sample(ed.im, 5) : null; if (e) c.e = e; else if (ed.c.e) c.e = ed.c.e;
+  crops[name] = c;
+  apiPost('/api/crop?name=' + encodeURIComponent(name), JSON.stringify(c), function(err){ toast(err ? 'Could not save the framing' : 'Framing saved'); });
+  edClose();
+  if (!SETMODE && photos[bgIx] === name) bgShow(bgIx);
+  if (settingsOn) renderCat(false);
+}
+function edClose(){ mpop('editor'); $('editor').className = ''; $('ghost').innerHTML = ''; $('edstage').innerHTML = ''; ed = null; }
 
 /* ================= input ================= */
 var KEYS = {37: 'L', 38: 'U', 39: 'R', 40: 'D'};
+// Back on Home returns to the app / input you were in before Home (the TV side remembers it: lastapp.sh)
+function goBack(){ api('/api/back', function(err, j){ if (err) return toast('Could not reach the TV'); if (!j || !j.back) toast('Nothing to go back to yet'); }); }
 document.addEventListener('keydown', function(e){
   var k = e.keyCode, wasSaver = saverOn;
   activity();
@@ -608,7 +842,10 @@ document.addEventListener('keydown', function(e){
     else if (k === 461 || k === 27 || k === 8 || k === 37) panelClose();
     e.preventDefault(); return;
   }
+  if (m === 'editor') { edKey(k); e.preventDefault(); return; }
   if (m === 'settings') { settingsKey(k, e); e.preventDefault(); return; }
+  if (SETMODE) return;
+  if (k === 461 || k === 27 || k === 8) { goBack(); e.preventDefault(); return; }
   if (KEYS[k]) { move(KEYS[k]); e.preventDefault(); } else if (k === 13) { activate(); e.preventDefault(); }
 });
 document.addEventListener('mousemove', function(){ if (saverOn) saverStop(); activity(); });
@@ -629,27 +866,41 @@ function onShow(){
   netLabel();
 }
 function onHide(){ clearTimeout(idleT); if (saverOn) saverStop(); if (mtop() === 'panel') panelClose(); }
-document.addEventListener('visibilitychange', function(){ if (document.hidden) onHide(); else { if (!settingsOn) focusItem(1, 0); onShow(); } });
-document.addEventListener('webOSRelaunch', function(){ if (saverOn) saverStop(); while (mstack.length) { var t = mtop(); if (t === 'settings') closeSettings(); else if (t === 'panel') panelClose(); else if (t === 'qr') qrClose(); else if (t === 'keypad') keypadClose(); else mstack.pop(); } focusItem(1, 0); onShow(); });
-window.addEventListener('resize', function(){ layoutRows(); });
-setInterval(function(){ if (!document.hidden) tick(); }, 1000);
-setInterval(function(){ if (!document.hidden) wxLoad(false); }, 60000);
-// pick up changes made from the phone page (settings, uploads): cheap local calls every 30 s while Home is visible
-setInterval(function(){ if (document.hidden || saverOn) return; loadSettings(); refreshPhotos(function(ch){ if (ch) { if (!document.body.className) bgApply(true); if (settingsOn && cats[catIdx].id === 'gallery') renderCat(false); } }); }, 30000);
 
-/* ================= start ================= */
-tick(); appsAt = Date.now(); focusItem(0, 0);
-loadSettings(function(){
-  wxLoad(true);
-  refreshPhotos(function(){ bgPickNew(); bgSchedule(); });
-});
-loadApps(function(ok){
-  layoutRows(); focusItem(Math.min(1, rows.length - 1), 0);
-  api('/api/ready', function(){ dlog('ready apps=' + apps.length + ' ok=' + ok + ' ua=' + navigator.userAgent.slice(-40)); });
-});
-setTimeout(function(){ api('/api/ready', noop); }, 4000);    // ready even if the app list is slow, so the 30 s Home watchdog only trips when the API is gone
-netLabel(); activity();
-if (MOCK && /saver/.test(location.search)) setTimeout(saverStart, 1200);
-if (MOCK && /settings=(\w+)/.test(location.search)) setTimeout(function(){ openSettings(/settings=(\w+)/.exec(location.search)[1]); setArea('pane'); if (/row=(\d+)/.test(location.search)) sFocus(parseInt(/row=(\d+)/.exec(location.search)[1], 10), 0); }, 1500);
-window.__tvhome = {set: setPath, saver: saverStart, stop: saverStop, bg: function(){ bgShow(bgIx + 1); }, settings: openSettings, photos: function(){ return photos.length; }, S: function(){ return S; }, wx: function(){ return wx; }};
+if (SETMODE) {
+  /* ---- Settings overlay: only the Settings screen; Back at the top level closes the page ---- */
+  document.documentElement.className = 'mode-settings'; cls(document.body, 'mode-settings', true);
+  tick();
+  loadSettings(function(){ refreshPhotos(function(){ if (settingsOn && cats[catIdx].id === 'gallery') renderCat(false); }); });
+  openSettings();
+  if (MOCK && /settings=(\w+)/.test(location.search)) setTimeout(function(){ for (var i = 0; i < cats.length; i++) if (cats[i].id === /settings=(\w+)/.exec(location.search)[1]) { catIdx = i; catClass(); renderCat(true); } setArea('pane'); if (/row=(\d+)/.test(location.search)) sFocus(parseInt(/row=(\d+)/.exec(location.search)[1], 10), 0); }, 1200);
+} else {
+  document.addEventListener('visibilitychange', function(){ if (document.hidden) onHide(); else { if (!settingsOn) focusItem(1, 0); onShow(); } });
+  document.addEventListener('webOSRelaunch', function(){ if (saverOn) saverStop(); while (mstack.length) { var t = mtop(); if (t === 'settings') closeSettings(); else if (t === 'panel') panelClose(); else if (t === 'qr') qrClose(); else if (t === 'keypad') keypadClose(); else if (t === 'editor') edClose(); else mstack.pop(); } focusItem(1, 0); onShow(); });
+  window.addEventListener('resize', function(){ layoutRows(); });
+  // the Settings overlay sits on top of Home without hiding it, so Home never gets a "visible" event: pick up what changed when the overlay closes
+  window.addEventListener('focus', function(){ if (document.hidden || saverOn) return; loadSettings(); refreshPhotos(function(ch){ if (ch) { if (!hasBg()) bgApply(true); else if (photos[bgIx]) bgShow(bgIx); } }); });
+  setInterval(function(){ if (!document.hidden) tick(); }, 1000);
+  setInterval(function(){ if (!document.hidden) wxLoad(false); }, 60000);
+  // pick up changes made from the phone page (settings, uploads, framing): cheap local calls every 30 s while Home is visible
+  setInterval(function(){ if (document.hidden || saverOn || ed) return; loadSettings(); refreshPhotos(function(ch){ if (ch) { if (!hasBg()) bgApply(true); if (settingsOn && cats[catIdx].id === 'gallery') renderCat(false); } }); }, 30000);
+
+  /* ================= start ================= */
+  tick(); appsAt = Date.now(); focusItem(0, 0);
+  loadSettings(function(){
+    wxLoad(true);
+    refreshPhotos(function(){ bgPickNew(); bgSchedule(); });
+  });
+  loadApps(function(ok){
+    layoutRows(); focusItem(Math.min(1, rows.length - 1), 0);
+    api('/api/ready', function(){ dlog('ready apps=' + apps.length + ' ok=' + ok + ' ua=' + navigator.userAgent.slice(-40)); });
+  });
+  setTimeout(function(){ api('/api/ready', noop); }, 4000);    // ready even if the app list is slow, so the 30 s Home watchdog only trips when the API is gone
+  netLabel(); activity();
+  if (MOCK && /saver/.test(location.search)) setTimeout(saverStart, 1200);
+  if (MOCK && /settings=(\w+)/.test(location.search)) setTimeout(function(){ openSettings(/settings=(\w+)/.exec(location.search)[1]); setArea('pane'); if (/row=(\d+)/.test(location.search)) sFocus(parseInt(/row=(\d+)/.exec(location.search)[1], 10), 0); }, 1500);
+  if (MOCK && /edit=(\S+?)(&|$)/.test(location.search)) setTimeout(function(){ edOpen(/edit=(\S+?)(&|$)/.exec(location.search)[1]); }, 1500);
+}
+applyUi();
+window.__tvhome = {set: setPath, saver: saverStart, stop: saverStop, bg: function(){ bgShow(bgIx + 1); }, settings: openSettings, photos: function(){ return photos.length; }, S: function(){ return S; }, wx: function(){ return wx; }, crops: function(){ return crops; }, edit: edOpen, key: function(k){ document.dispatchEvent(new KeyboardEvent('keydown', {keyCode: k})); }};
 })();

@@ -17,12 +17,15 @@ button.sec{background:#232a38;color:var(--text)}
 button:disabled{opacity:.5}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
 .grid .ph{position:relative;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#10141c}
-.grid img{width:100%;height:100%;object-fit:cover;display:block}
-.grid .x{position:absolute;right:4px;top:4px;width:28px;height:28px;border-radius:14px;background:rgba(0,0,0,.65);color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0}
+.stage{position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;background:#0e1118}
+.stage img{position:absolute;max-width:none;display:block}
+.stage .fl{position:absolute;display:none}
+.grid .x{position:absolute;right:4px;top:4px;width:28px;height:28px;border-radius:14px;background:rgba(0,0,0,.65);color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0;z-index:3}
 .row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid var(--line)}
 .row:first-of-type{border-top:0}
 .row label{flex:1;padding-right:12px}.row small{display:block;color:var(--dim)}
-select,input[type=text],input[type=tel]{background:#10141c;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:16px system-ui;min-width:110px}
+select,input[type=text],input[type=tel],textarea{background:#10141c;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:16px system-ui;min-width:110px}
+textarea{width:100%;min-height:110px;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace}
 .sw{position:relative;width:52px;height:30px;flex:none}.sw input{opacity:0;width:100%;height:100%;position:absolute;margin:0}
 .sw i{position:absolute;inset:0;border-radius:15px;background:#303849;transition:.15s}.sw i:after{content:"";position:absolute;left:3px;top:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.15s}
 .sw input:checked+i{background:#2ecc71}.sw input:checked+i:after{transform:translateX(22px)}
@@ -30,21 +33,30 @@ select,input[type=text],input[type=tel]{background:#10141c;color:var(--text);bor
 .bar{height:6px;border-radius:3px;background:#232a38;margin-top:6px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
 .err{color:#ff7b7b}
 canvas{display:none}
-.crop{margin-top:12px;display:none}
-.crop img{width:100%;border-radius:10px}
-.crop input[type=range]{width:100%}
+/* framing editor */
+#ed{position:fixed;inset:0;background:#05070a;z-index:50;display:none;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+#ed.on{display:flex}
+#edh{padding:14px 16px 6px;font-size:15px;color:var(--dim)}
+#es{position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden;touch-action:none}
+#gh{position:absolute;inset:0;pointer-events:none;display:none}
+#gh.on{display:block}
+#gh div{position:absolute;border:1.5px solid rgba(255,255,255,.7);background:rgba(255,255,255,.14);border-radius:6px}
+#gh .t{border:0;background:none;color:rgba(255,255,255,.85);font-size:2.2vw;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:0}
+#edc{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+#edc input[type=range]{width:100%}
+.btns{display:flex;gap:10px}
+.btns button{flex:1;padding:12px 8px;font-size:15px}
 </style>
 </head>
 <body>
 <h1>TV photos</h1>
-<p class="sub">Photos you add are cropped to fit the TV automatically and shown on Home and the screensaver.</p>
+<p class="sub">Photos you add are shown on Home and the screensaver. Tap a photo to move and zoom it.</p>
 
 <div class="card">
   <h2>Add photos</h2>
   <button id="pick">Choose photos</button>
   <input id="file" type="file" accept="image/*" multiple hidden>
   <div class="prog" id="prog"></div>
-  <div class="crop" id="crop"><img id="cropimg" alt=""><div class="sub" id="cropnote"></div><input id="cropy" type="range" min="0" max="100" value="50"><button class="sec" id="cropok" style="margin-top:8px">Use this crop</button></div>
 </div>
 
 <div class="card">
@@ -66,9 +78,31 @@ canvas{display:none}
   <div class="row" id="zrow"><label>ZIP code</label><input id="s_zip" type="tel" inputmode="numeric" maxlength="5" placeholder="47906"></div>
   <div class="row"><label>Temperature</label><select id="s_unit"><option value="F">&deg;F</option><option value="C">&deg;C</option></select></div>
 </div>
+
+<div class="card">
+  <h2>Ad blocking <span id="bcount"></span></h2>
+  <div id="blists"></div>
+  <div class="btns" style="margin-top:10px"><button class="sec" id="bupd">Update lists now</button></div>
+  <p class="sub" style="margin-top:14px">Block these names too (one per line, for example <i>ads.example.com</i>):</p>
+  <textarea id="bcustom" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
+  <p class="sub" style="margin-top:14px">Never block these (use it if an app stops working; <i>example.com</i> also covers its sub-domains, <i>=example.com</i> only that exact name):</p>
+  <textarea id="ballow" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
+  <div class="btns" style="margin-top:10px"><button id="bsave">Save my lists</button></div>
+</div>
 <p class="sub" id="status"></p>
 
+<div id="ed">
+  <div id="edh">Drag to move the photo, pinch or use the slider to zoom.</div>
+  <div id="es"><div id="gh"></div></div>
+  <div id="edc">
+    <input id="ez" type="range" min="0" max="1000" value="0">
+    <div class="btns"><button class="sec" id="eauto">Automatic</button><button class="sec" id="eov">Home overlay: on</button></div>
+    <div class="btns"><button class="sec" id="ecancel">Cancel</button><button id="esave">Save framing</button></div>
+  </div>
+</div>
+
 <canvas id="cv"></canvas>
+<script src="/stage.js"></script>
 <script>
 (function(){
 'use strict';
@@ -78,24 +112,28 @@ function qs(p){ return p + (p.indexOf('?') < 0 ? '?' : '&') + 't=' + encodeURICo
 function getJSON(p){ return fetch(qs(p)).then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); }); }
 function post(p, body){ return fetch(qs(p), {method: 'POST', body: body}).then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); }); }
 function status(m, bad){ var s = $('status'); s.textContent = m; s.className = 'sub' + (bad ? ' err' : ''); }
+var crops = {}, W = 1920;
 
 /* ---------- gallery ---------- */
 function loadGallery(){
-  getJSON('/m/photos').then(function(list){
+  return Promise.all([getJSON('/m/photos'), getJSON('/m/crops').catch(function(){ return {}; })]).then(function(r){
+    var list = r[0]; crops = r[1] || {};
     $('count').textContent = '(' + list.length + ')'; $('empty').style.display = list.length ? 'none' : 'block';
     var g = $('grid'); g.innerHTML = '';
     list.forEach(function(n){
       var d = document.createElement('div'); d.className = 'ph';
-      d.innerHTML = '<img loading="lazy" alt=""><button class="x" aria-label="Delete">✕</button>';
-      d.firstChild.src = qs('/photos/thumbs/' + encodeURIComponent(n));
-      d.lastChild.onclick = function(){ if (confirm('Remove this photo from the TV?')) post('/m/delete?name=' + encodeURIComponent(n), '').then(loadGallery).catch(function(){ status('Could not delete', true); }); };
+      var st = Stage.make(), im = st.lastChild; d.appendChild(st);
+      im.onload = function(){ Stage.place(st, im.naturalWidth, im.naturalHeight, crops[n]); };
+      im.src = qs('/photos/thumbs/' + encodeURIComponent(n));
+      var x = document.createElement('button'); x.className = 'x'; x.setAttribute('aria-label', 'Delete'); x.textContent = '✕';
+      x.onclick = function(ev){ ev.stopPropagation(); if (confirm('Remove this photo from the TV?')) post('/m/delete?name=' + encodeURIComponent(n), '').then(loadGallery).catch(function(){ status('Could not delete', true); }); };
+      d.appendChild(x); d.onclick = function(){ edOpen(n); };
       g.appendChild(d);
     });
   }).catch(function(){ status('This link is not valid any more. Scan the QR code on the TV again.', true); });
 }
 
-/* ---------- upload with automatic 16:9 crop ---------- */
-var W = 1920, H = 1080;
+/* ---------- upload: the whole photo (shrunk), a small preview and an automatic framing ---------- */
 function loadImage(file){
   return new Promise(function(res, rej){
     var url = URL.createObjectURL(file), im = new Image();
@@ -113,29 +151,28 @@ function autoCropPos(im, nw, nh){
       var mx = Math.max(d[p], d[p + 1], d[p + 2]), mn = Math.min(d[p], d[p + 1], d[p + 2]);
       s += Math.abs(g0 - g1) + Math.abs(g0 - g2) + (mx - mn) * .25; } e[y] = s; }
   var win = Math.max(1, Math.round(sh * (nw * 9 / 16) / nh)); if (win >= sh) return 0.5;
-  var best = 0, bs = -1, tot = 0; for (var k = 0; k <= sh - win; k++) {
+  var best = 0, bs = -1; for (var k = 0; k <= sh - win; k++) {
     var sum = 0; for (var j = k; j < k + win; j++) sum += e[j];
     var centre = (k + win / 2) / sh, bias = 1 - Math.abs(centre - 0.42) * 0.5;     // faces tend to sit in the upper-middle
     sum *= bias; if (sum > bs) { bs = sum; best = k; } }
   return best / (sh - win);
 }
-function render(im, nw, nh, pos, w, h, q){
-  var c = $('cv'); c.width = w; c.height = h; var x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
-  var sr = nw / nh, tr = w / h, sx = 0, sy = 0, sw = nw, sh = nh;
-  if (sr > tr) { sw = nh * tr; sx = (nw - sw) * 0.5; } else { sh = nw / tr; sy = (nh - sh) * pos; }
-  x.drawImage(im, sx, sy, sw, sh, 0, 0, w, h);
+function shrink(im, nw, nh, maxLong, maxPx, q){
+  var s = Math.min(1, maxLong / Math.max(nw, nh), Math.sqrt(maxPx / (nw * nh))), w = Math.max(2, Math.round(nw * s)), h = Math.max(2, Math.round(nh * s));
+  var c = $('cv'); c.width = w; c.height = h; var x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(im, 0, 0, w, h);
   return new Promise(function(res){ c.toBlob(res, 'image/jpeg', q); });
 }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 function upload(blob, id, kind){ return fetch(qs('/m/upload?id=' + id + '&kind=' + kind), {method: 'POST', body: blob}).then(function(r){ if (!r.ok) throw new Error('upload ' + r.status); }); }
-function processOne(file, i, n, pos){
+function processOne(file){
   return loadImage(file).then(function(o){
-    var im = o.im, nw = im.naturalWidth, nh = im.naturalHeight;
-    var p = pos != null ? pos : (nw / nh >= 16 / 9 ? 0.5 : autoCropPos(im, nw, nh));
-    return render(im, nw, nh, p, W, H, 0.88).then(function(full){
-      return render(im, nw, nh, p, 320, 180, 0.78).then(function(th){
+    var im = o.im, nw = im.naturalWidth, nh = im.naturalHeight, ar = nw / nh, fy = 0.5;
+    if (ar < Stage.FA) { var pos = autoCropPos(im, nw, nh), sh = nw / Stage.FA; fy = (pos * (nh - sh) + sh / 2) / nh; }
+    var crop = {x: 0.5, y: Math.round(fy * 1000) / 1000, z: 1, a: [0.5, Math.round(fy * 1000) / 1000]};
+    return shrink(im, nw, nh, 2048, 2600000, 0.86).then(function(full){
+      return shrink(im, nw, nh, 480, 400000, 0.78).then(function(th){
         var id = uid(); URL.revokeObjectURL(o.url);
-        return upload(th, id, 'thumb').then(function(){ return upload(full, id, 'full'); });
+        return upload(th, id, 'thumb').then(function(){ return upload(full, id, 'full'); }).then(function(){ return post('/m/crop?name=u' + id + '.jpg', JSON.stringify(crop)); });
       });
     });
   });
@@ -147,11 +184,73 @@ $('file').onchange = function(){
   done = 0; failed = 0; $('pick').disabled = true; step();
 };
 function step(){
-  if (!files.length) { $('pick').disabled = false; $('prog').innerHTML = done + ' photo' + (done === 1 ? '' : 's') + ' added' + (failed ? ', ' + failed + ' failed' : '') + '. They will show on the TV within a minute.'; loadGallery(); return; }
+  if (!files.length) { $('pick').disabled = false; $('prog').innerHTML = done + ' photo' + (done === 1 ? '' : 's') + ' added' + (failed ? ', ' + failed + ' failed' : '') + '. They will show on the TV within a minute. Tap a photo below to adjust its framing.'; loadGallery(); return; }
   var f = files.shift(), total = done + failed + files.length + 1;
   $('prog').innerHTML = 'Adding photo ' + (done + failed + 1) + ' of ' + total + '…<div class="bar"><i style="width:' + Math.round(100 * (done + failed) / total) + '%"></i></div>';
   processOne(f).then(function(){ done++; }).catch(function(e){ failed++; }).then(step);
 }
+
+/* ---------- framing editor ---------- */
+var ed = null;
+// a drawing of Home on top of the photo (same layout as the TV: header, Favorites row, first row of apps)
+(function(){
+  var g = $('gh'), parts = [
+    [4.6, 3.6, 24, 15, ''], [58, 3.6, 37.4, 9.4, ''],
+    [5, 52.5, 20, 3.5, 't', 'Favorites'],
+    [5, 57.2, 10.7, 19, ''], [18.7, 57.2, 10.7, 19, ''], [32.4, 57.2, 10.7, 19, ''], [46.1, 57.2, 10.7, 19, ''],
+    [5, 90.5, 8, 14, ''], [14.2, 90.5, 8, 14, ''], [23.4, 90.5, 8, 14, ''], [32.6, 90.5, 8, 14, '']];
+  parts.forEach(function(p){ var d = document.createElement('div'); d.style.left = p[0] + '%'; d.style.top = p[1] + '%'; d.style.width = p[2] + '%'; d.style.height = p[3] + '%'; if (p[4]) { d.className = p[4]; d.textContent = p[5]; } g.appendChild(d); });
+})();
+function edOpen(name){
+  var c0 = crops[name] || null;
+  ed = {name: name, c: Stage.norm(c0 && c0.x !== undefined ? c0 : Stage.auto(c0)), ghost: true, st: null, im: null, nw: 0, nh: 0, ptr: {}};
+  $('ed').className = 'on'; $('eov').textContent = 'Home overlay: on'; $('gh').className = 'on'; document.body.style.overflow = 'hidden';
+  var old = $('es').querySelector('.stage'); if (old) old.remove();
+  var im = new Image();
+  im.onload = function(){
+    if (!ed || ed.name !== name) return;
+    var st = Stage.make(); st.lastChild.src = im.src; $('es').insertBefore(st, $('gh'));
+    ed.im = im; ed.nw = im.naturalWidth; ed.nh = im.naturalHeight; ed.st = st; ed.c = Stage.norm(c0 && c0.x !== undefined ? c0 : Stage.auto(c0), ed.nw, ed.nh);
+    ed.c.a = c0 && c0.a; ed.c.e = c0 && c0.e; if (!ed.c.e) ed.c.e = Stage.sample(im, 5) || undefined;
+    var zmin = Stage.minZoom(ed.nw, ed.nh); $('ez').min = Math.round(zmin * 100); $('ez').max = 350; edRender();
+  };
+  im.src = qs('/photos/' + encodeURIComponent(name));
+}
+function edRender(){ if (!ed || !ed.st) return; Stage.place(ed.st, ed.nw, ed.nh, ed.c); $('ez').value = Math.round(ed.c.z * 100); }
+function edClose(){ $('ed').className = ''; document.body.style.overflow = ''; ed = null; }
+(function(){
+  var es = $('es');
+  function pts(){ var a = []; for (var k in ed.ptr) a.push(ed.ptr[k]); return a; }
+  es.addEventListener('pointerdown', function(e){ if (!ed || !ed.st) return; es.setPointerCapture(e.pointerId); ed.ptr[e.pointerId] = {x: e.clientX, y: e.clientY}; ed.d0 = null; });
+  es.addEventListener('pointermove', function(e){
+    if (!ed || !ed.st || !ed.ptr[e.pointerId]) return;
+    var p = ed.ptr[e.pointerId], rc = es.getBoundingClientRect(), n = pts().length, c = ed.c, g = Stage.geom(ed.nw, ed.nh, c);
+    if (n === 1) {
+      var dx = e.clientX - p.x, dy = e.clientY - p.y;
+      c.x = Stage.clamp(c.x - (dx / rc.width) / g.w, 0, 1); c.y = Stage.clamp(c.y - (dy / rc.height) / g.h, 0, 1);
+    } else if (n === 2) {
+      var a = pts(), o = ed.ptr[e.pointerId], other = a[0] === o ? a[1] : a[0], d1 = Math.hypot(e.clientX - other.x, e.clientY - other.y), d0 = Math.hypot(o.x - other.x, o.y - other.y);
+      if (d0 > 8) c.z = Stage.clamp(c.z * d1 / d0, Stage.minZoom(ed.nw, ed.nh), 3.5);
+    }
+    p.x = e.clientX; p.y = e.clientY; edRender();
+  });
+  function up(e){ if (ed) delete ed.ptr[e.pointerId]; }
+  es.addEventListener('pointerup', up); es.addEventListener('pointercancel', up);
+  $('ez').oninput = function(){ if (!ed || !ed.st) return; ed.c.z = Stage.clamp(this.value / 100, Stage.minZoom(ed.nw, ed.nh), 3.5); edRender(); };
+  $('eauto').onclick = function(){ if (!ed || !ed.st) return; var a = Stage.auto(ed.c); ed.c.x = a.x; ed.c.y = a.y; ed.c.z = 1; delete ed.c.e; edRender(); };
+  $('eov').onclick = function(){ if (!ed) return; ed.ghost = !ed.ghost; $('gh').className = ed.ghost ? 'on' : ''; this.textContent = 'Home overlay: ' + (ed.ghost ? 'on' : 'off'); };
+  $('ecancel').onclick = edClose;
+  $('esave').onclick = function(){
+    if (!ed || !ed.st) return;
+    var name = ed.name, r = function(v){ return Math.round(v * 1000) / 1000; }, c = {x: r(ed.c.x), y: r(ed.c.y), z: r(ed.c.z)};
+    if (ed.c.a) c.a = ed.c.a;
+    var e = Stage.sample(ed.im, 5); if (e) c.e = e; else if (ed.c.e) c.e = ed.c.e;
+    this.disabled = true;
+    var btn = this;
+    post('/m/crop?name=' + encodeURIComponent(name), JSON.stringify(c)).then(function(){ btn.disabled = false; crops[name] = c; edClose(); status('Framing saved. The TV picks it up within 30 seconds.'); loadGallery(); })
+      .catch(function(){ btn.disabled = false; status('Could not save the framing', true); });
+  };
+})();
 
 /* ---------- settings ---------- */
 var S = null, saveT = null;
@@ -175,7 +274,34 @@ function save(){ clearTimeout(saveT); saveT = setTimeout(function(){ post('/m/se
 var DEF = {weather: {mode: 'auto', zip: '', unit: 'F'}, clock24: false, bg: {on: true, everyMin: 10}, saver: {on: true, idleMin: 2, photos: true, slideSec: 12, weather: true}};
 function merge(d, s){ for (var k in s) { if (s[k] && typeof s[k] === 'object' && !Array.isArray(s[k])) { d[k] = d[k] && typeof d[k] === 'object' ? d[k] : {}; merge(d[k], s[k]); } else d[k] = s[k]; } return d; }
 getJSON('/m/settings').then(function(j){ S = merge(JSON.parse(JSON.stringify(DEF)), j); bind(); }).catch(function(){ status('This link is not valid any more. Scan the QR code on the TV again.', true); });
-loadGallery();
+
+/* ---------- ad blocking ---------- */
+function num(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function loadBlock(){
+  getJSON('/m/block').then(function(j){
+    $('bcount').textContent = '(' + num(j.blocked) + ' names blocked)';
+    var box = $('blists'); box.innerHTML = '';
+    j.lists.forEach(function(l){
+      var row = document.createElement('div'); row.className = 'row';
+      row.innerHTML = '<label></label><span class="sw"><input type="checkbox"><i></i></span>';
+      row.firstChild.innerHTML = '<span></span><small></small>'; row.firstChild.firstChild.textContent = l.name;
+      row.firstChild.lastChild.textContent = l.desc + ' (' + num(l.count) + ' names)';
+      var cb = row.querySelector('input'); cb.checked = l.on;
+      cb.onchange = function(){ cb.disabled = true; status('Changing ' + l.name + '…');
+        post('/m/block/set?id=' + l.id + '&v=' + (cb.checked ? 'on' : 'off'), '').then(function(){ status('Done. The TV is now blocking the names on your lists.'); loadBlock(); }).catch(function(){ status('Could not change that', true); cb.disabled = false; }); };
+      box.appendChild(row);
+    });
+  }).catch(function(){});
+  getJSON('/m/block/custom?kind=block').then(function(a){ $('bcustom').value = a.join('\n'); }).catch(function(){});
+  getJSON('/m/block/custom?kind=allow').then(function(a){ $('ballow').value = a.join('\n'); }).catch(function(){});
+}
+$('bupd').onclick = function(){ post('/m/block/update', '').then(function(){ status('The TV is downloading the latest lists (about half a minute).'); setTimeout(loadBlock, 35000); }).catch(function(){ status('Could not start the update', true); }); };
+$('bsave').onclick = function(){
+  var b = this; b.disabled = true; status('Saving…');
+  post('/m/block/custom?kind=block', $('bcustom').value).then(function(a){ $('bcustom').value = a.join('\n'); return post('/m/block/custom?kind=allow', $('ballow').value); })
+    .then(function(a){ $('ballow').value = a.join('\n'); b.disabled = false; status('Saved. The TV applied your lists.'); loadBlock(); }).catch(function(){ b.disabled = false; status('Could not save your lists', true); });
+};
+loadGallery(); loadBlock();
 })();
 </script>
 </body>

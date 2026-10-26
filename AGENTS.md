@@ -49,16 +49,28 @@ tv/                   everything deployed to /media/developer/tv-debloat on the 
   common.sh           shared helpers: paths, log(), lun() (luna-send with stdin closed), api_start/api_ok, HOME_ID/HOME_EXE
   boot.sh             started detached by the init hook; crash-loop guard; waits for SAM; applies debloat + home-on; 5-min sweep for late-starting services
   zz-debloat          the ONE Homebrew init.d hook (copied to /var/lib/webosbrew/init.d/)
-  debloat.sh          apply|undo|status <items>: hosts remotelogger nudge contentminer admanager lgsettings voice iot idleapps
+  debloat.sh          apply|undo|status|state|sweep [items]: hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates (catalog: services.tsv, state: state/svc.conf)
+  services.tsv        catalog behind Settings -> Services & privacy (id|group|default|locked|name|description)
+  blocklist.sh        Pi-hole style ad blocking: builds the "# tv-debloat begin/end" block in /etc/hosts from blocklists/ + state/lists/ + custom/allow lists
+  blocklists/         lists.tsv (catalog), lg/ads/trackers/streaming.txt (built-in), allow.txt (never blocked)
+  settings-hook.sh    makes the remote's Settings (gear) key open OUR Settings: watches the log for LG's quick panel / Settings app, closes it, opens the overlay
+  lastapp.sh          start|stop|top|before: history of apps/inputs in /tmp/appstack (closed apps skipped); api.sh /api/back launches the newest (Back on Home)
+  backchain.sh        start|stop: Back from an app returns to the previous app (keywatch.py reads KEY_BACK from /dev/input/event* of the LGE remotes; history from lastapp.sh)
+  keywatch.py         read-only evdev Back-key reporter (Python 2.7; struct input_event is 16 bytes). Test without the remote: write a 16-byte KEY_BACK (code 158) down+up event pair to /dev/input/event1
+  pointer.sh          off|on|apply|watch|stop: EXPERIMENTAL Magic Remote pointer switch (wake-on-shake + motion sensor off), re-applied by a watcher when the remote reconnects
+  settings-open.sh    open|toggle|close our Settings overlay (a second WAM page, settings.html, window type overlay)
   home-on.sh          start API, bind-mount the stand-in over LG's Home, wait <=30 s for the launcher to report ready (else fall back), start the watchdog
   home-off.sh         restore LG's Home (kills stand-in first, then umount, then relaunch)
   home-standin.sh     the program SAM thinks is LG's Home: asks WAM to open the launcher, registers with SAM, handles relaunch/close
   api.sh              one HTTP request per connection (tcpsvd): loopback = full API for the launcher, LAN = phone page + token-protected photo/settings routes
   revert.sh           undo everything (+ reboot unless --no-reboot)
-  launcher/           the web app: index.html (markup+CSS), app.js (logic), qr.js (vendored MIT), phone.html (served to phones), appinfo.json, photos/ (private)
+  launcher/           the web app: index.html (markup+CSS), app.js (logic; MODE home|settings), stage.js (photo framing, shared with the phone page), qr.js (vendored MIT), phone.html, appinfo.json, photos/ (private)
 tools/                PC-side tools (Node 20+; run `npm install` in tools/ once)
   deploy.sh           copy tv/ to the TV, force root ownership, remove group/world write
-  prep-photos.js      folder of pictures -> 1920x1080 16:9 crops (sharp "attention" crop) + 320x180 thumbs
+  prep-photos.js      folder of pictures -> whole photos (<=2048 px / 2.6 MP) + 480 px previews + automatic framing (state/crops via deploy.sh)
+  lg-settings-test.sh sets every LG key our Settings uses back to its own value on the TV: proves the TV accepts it
+  bench-quick.sh      3-minute Home / YouTube / Netflix launch benchmark
+  pointer-experiment.sh  dead end, kept as a record: mrcu activateMotionSensor is accepted but does not hide the pointer
   check.sh            health check after any change (Settings, Home, Netflix, HDMI 1 all open) - runs on the TV
   safety-test.sh      proves the recovery paths - runs on the TV
   quick.sh            10 s memory/CPU snapshot - runs on the TV
@@ -96,6 +108,25 @@ Facts verified on webOS 4.5 (re-verify on other versions):
 - BusyBox only: no `httpd`, no `jq`, minimal Python 2.7 (no BaseHTTPServer/threading). Use sh, awk, sed, od, tcpsvd, `timeout -t N`, `usleep`.
 - Latency is measured from `/var/log/messages` (SAM `NL_APP_LAUNCH_BEGIN` -> surface-manager `NL_VSC visible:true`). The log rotates; `getForegroundAppInfo` does not report overlays/home.
 - Chromium 53 in the page: ES5 style, no async/await, no flex `gap`, no CSS grid, no `padStart`, canvas export of `file://` images is blocked.
+
+### Round 3 facts (verified on the dev TV, webOS 4.5)
+
+- **LG settings schema** is `/etc/palm/description.json` (array of `{category,key,values,dimension}`): use it for valid values. `sound.clearVoice` = `off|level1|level2|level3`, `option.logoLight` = `off|low|medium|high`,
+  `sound.soundMode` = `standard|movie|news|sports|music|game`, `option.pointerShape` = `a-d`. `tools/lg-settings-test.sh` re-validates. Picture keys depend on input / picture mode / dynamic range (a missing key is normal).
+- **Settings key**: the gear button opens `com.webos.app.quicksettings`, a QML overlay inside surface-manager (no file to replace, a bind mount only helps after restarting surface-manager). We watch `/var/log/messages`
+  (`NL_VSC ... quicksettings visible:true`, `NL_APP_LAUNCH_BEGIN com.palm.app.settings`) with `tail -F | awk`, close it (`luna://com.webos.surfacemanager/closeByAppId`) and open our overlay. Test without the remote:
+  `luna-send -n 1 luna://com.webos.surfacemanager/showQuickSettings '{}'`. LG's own Settings stays reachable via `/api/lg/open` (hook lets it through for 25 s) and `state/gear-lg` turns the redirect off.
+- **Overlay page**: WAM `launchApp` with `defaultWindowType":"overlay"`, `transparent`, `main` = `settings.html` (a query string in `main` gives about:blank). Visible about 0.8-1 s after launch; `getForegroundAppInfo {"extraInfo":true}` lists it a little later. No `webOSSystem` object in these pages.
+- `/var/log/messages` rotates in a small ramfs and briefly does not exist: never assume it (bench/check use stamps or retry).
+- **Preload manager** has a runtime API: `luna://com.webos.service.preloadmanager/getPreloadPolicy` and `setPreloadPolicy {"application":{"id":...,"isEnabled":false}}` (originals saved in `state/preload.orig`).
+- **Update servers**: `/usr/sbin/update` talks to snu.lge.com, snu-dev.lge.com, su.lge.com, su-ssl.lge.com, nsu.lge.com; Homebrew blocks four. `support.automaticUpdate` and `option.appUpdateMode` are the settings; `updates` item keeps all four layers.
+- **Memory**: the launcher page grows with photo size (decoded image, 4 bytes/pixel): stored photos are capped at about the screen size (2048 px, 2.6 MP) and Home frees its background while the screensaver runs. 1.5x that made the TV swap until SSH timed out.
+- /etc/hosts lookups cost about 6 ms more with 4.4k names (glibc scans the file per lookup); the cap is 9,000 names.
+- `hosts` cannot wildcard. A real Pi-hole (DNS sinkhole with wildcards + query log) would need a local DNS service; not built (risk to networking).
+- Do not touch `ss.gateway` / second-screen: Homebrew Channel uses that identity for privileged luna calls.
+- The Magic Remote pointer cannot be switched off from the system side (see `tools/pointer-experiment.sh`); our own pages hide it with CSS only. Untested lead (`tv/pointer.sh`): mrcu `/cursor/setWakeUpCondition {"condition":"motion|shake"}`; mrcu calls only work while the remote is awake (`Magic Remote is not Ready` otherwise) and reset on reconnect. Other mrcu methods seen in `lginput2`: `/cursor/setPosition{posX,posY}`, `setSlideMode`, `/sensor/setCursorBounds`, `setHotkeyCursorPolicy{button,cursorPolicy}`, `activateMrcu` (could disable the remote: do not try without a way back). Surface-manager has no luna method for cursor visibility (only a Wayland `set_cursor_visibility` request).
+- **Back on Home**: Home gets keyCode 461 like the Settings page; `goBack()` calls `/api/back`, which relaunches `/tmp/lastapp` (kept by `lastapp.sh` from SAM's foreground subscription). Verified with an injected key only.
+- Python 2.7 on the TV has `json`: handy for parsing luna replies in scripts.
 
 ## 6. Safety net (and how to prove it)
 

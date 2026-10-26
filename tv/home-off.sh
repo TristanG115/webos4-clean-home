@@ -2,6 +2,12 @@
 # home-off.sh [temp|perm] - bring LG's own Home back. perm also creates DISABLE so boots keep LG's Home.
 . /media/developer/tv-debloat/common.sh
 [ "$1" = perm ] && touch "$D/DISABLE"
+# our Settings key hook and overlay go first: with LG's Home back, LG's own Settings panel is used again
+sh "$D/settings-hook.sh" stop >/dev/null 2>&1
+sh "$D/lastapp.sh" stop >/dev/null 2>&1
+sh "$D/backchain.sh" stop >/dev/null 2>&1
+sh "$D/pointer.sh" stop >/dev/null 2>&1
+sh "$D/settings-open.sh" close >/dev/null 2>&1
 # LG's Home may need the ad service the stub replaces, so un-stub it first
 sh "$D/debloat.sh" undo admanager >/dev/null 2>&1
 # stop the stand-in (and its SAM registration) FIRST: a bind-mounted script that is still running keeps the mount busy

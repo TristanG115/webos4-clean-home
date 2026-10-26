@@ -12,12 +12,17 @@ which both refuse webOS 4 (Upstart instead of systemd, no usable Node). See [NOT
 - **Home** - clock, date, weather (with the date next to it), Inputs / Network / Settings buttons, a favorites row (Netflix, YouTube, Hulu, Disney+) with a
   colour glow, a grid of every other app, and your photos as a slowly rotating background (a different photo every launch, then every 10 min).
 - **Screensaver / AFK screen** - after idle time: clock + date + weather over a gallery photo (or a dark screen if you turn photos off; the text drifts to avoid burn-in).
-- **Gallery you manage from the TV and your phone** - *Settings -> Photo gallery* shows your photos. "Add photos from your phone" shows a QR code; the phone page crops
-  every photo to 16:9 at full quality (it finds the interesting part of portrait photos), uploads it, and the TV picks it up. Delete from either side.
-- **Settings** - instant, remote-friendly: Home & Screensaver, Weather (automatic location or a ZIP code typed with the remote), Photo gallery, **Picture**, **Sound**,
-  **Power & startup** (incl. Quick Start), Network, About, and a shortcut to LG's own Settings for everything else. Picture/sound/power items write to LG's settings service.
-- **Debloat** - LG ad servers blocked in hosts; `admanager` (ad delivery), `remotelogger`, `nudge`, `contentminer` stopped; LG's promotion/personalisation/ad-cookie toggles off;
-  voice stack (mic button), ThinQ/IoT and HomeKit helpers stopped. AirPlay and casting are untouched.
+- **Gallery you manage from the TV and your phone** - *Settings -> Photo gallery* shows your photos. "Add photos from your phone" shows a QR code; the phone page uploads the
+  whole photo (shrunk to screen size) with an automatic framing. **Framing editor** (TV remote or phone): move / zoom the photo, see a see-through copy of Home on top, and where the photo no
+  longer reaches the screen edge the edge colours of the photo fade out. Saved framing is used by Home and the screensaver.
+- **Settings** - the remote's Settings (gear) button opens this instead of LG's panel (it is a transparent overlay, so you see the picture while adjusting it). Home & Screensaver, Weather,
+  Photo gallery, **Picture**, **Sound**, **Power & timers** (Quick Start, sleep timers, clock), **Inputs & HDMI**, **Remote & pointer**, **Accessibility**, **Network**, **Ad blocking**,
+  **Services & privacy**, **About & updates**, plus a legacy link to LG's own Settings (Wi-Fi setup, accounts, channels). Values and option lists come from LG's own settings schema.
+- **Ad blocking (Pi-hole style)** - built-in lists (LG, ad networks, analytics, streaming-app ads) plus downloadable lists (Peter Lowe, Perflyst SmartTV, AdAway), your own block and allow lists
+  (edit them on the phone page), an always-allowed list for streaming/CDN names. Applied to the TV's RAM hosts file (capped at 9,000 names).
+- **Services & privacy** - every LG background service we stop is a switch with a plain description: ad service, nudge, content miner, remote logging, voice, ThinQ/IoT, app pre-loading,
+  idle LG apps, TV guide downloader. **LG system and app updates are blocked and locked** (settings, hosts, `update` service, re-checked every 5 minutes).
+- **Faster** - the launcher code runs from RAM (tmpfs), LG's app pre-loading is trimmed to Home/favorites/inputs, idle LG apps are closed.
 - **Always recoverable** - see [CHANGES.md](CHANGES.md): `./revert.sh`, one init file, automatic fallback to LG's Home, crash-loop guard.
 
 ## Results (same TV, same `bench.sh`, medians of 3; raw data in `results/`)

@@ -78,3 +78,37 @@ Not touched on purpose: AirPlay, casting, the on-screen keyboard (`MaliitServer`
 
 Verified for this round: full `revert.sh --no-reboot` returned hosts, mounts, Upstart jobs, LG toggles and init.d to the stock snapshot; reboot with the init hook re-applied everything
 unattended (launcher ready 60 s after boot start); `tools/check.sh`, the 30 s ready-timeout fallback, the crash-loop guard and the API self-heal all passed (`results/safety-test-2.txt`).
+
+## Added in round 3 (2026-10-26: speed, services switches, ad lists, our Settings on the remote, photo framing)
+
+| What | Where / command | Undo |
+|---|---|---|
+| Launcher code runs from RAM | `/tmp/tv-launcher` (copy made by `home-on.sh`; photos bind-mounted in); WAM loads that folder, flash copy is the fallback | `home-off.sh` / reboot (tmpfs); `revert.sh` removes it |
+| LG app pre-loading trimmed | `preloadmanager/setPreloadPolicy` isEnabled false for Assistant, Browser, Tips, Vudu, Amazon, Pooq (originals in `state/preload.orig`) | `debloat.sh undo preload` or reboot |
+| Idle LG apps closed | Tips / Assistant / Browser killed when resident (`debloat.sh apply idleapps`) | none needed (start on demand) |
+| LG updates blocked and locked | `support.automaticUpdate=off`, `option.appUpdateMode=manual`, hosts `snu.lge.com snu-dev.lge.com su.lge.com su-dev.lge.com su-ssl.lge.com nsu.lge.com` (`# tvd-update`), `initctl stop update`; re-checked every 5 min | `debloat.sh undo updates` (revert.sh does it); Homebrew's own hosts block stays |
+| Services catalog with switches | `services.tsv`, `state/svc.conf`; Settings -> Services & privacy; `epg` (TV guide downloader) available, off by default | switch off in Settings, or `debloat.sh undo <item>` |
+| Pi-hole style ad blocking | `blocklist.sh`: hosts block between `# tv-debloat begin/end` (about 4,400 names by default, cap 9,000), lists in `blocklists/`, downloads in `state/lists/`, your lists `state/block-custom.txt` / `block-allow.txt`; remote lists refresh weekly | `blocklist.sh remove` (also `debloat.sh undo hosts`) |
+| Remote Settings key opens our Settings | `settings-hook.sh` (log watcher, started by `home-on.sh`), `settings-open.sh` (overlay page `tv.debloat.settings`) | `settings-hook.sh stop`, or Settings -> Remote -> "Settings button opens: LG's quick panel" (`state/gear-lg`) |
+| LG Settings values written from our screens, now with correct value sets | Picture, Sound, Power & timers, Inputs, Accessibility, Network, Remote pages (about 90 keys, all re-tested with `tools/lg-settings-test.sh`: 91 accepted) | change back in our screen |
+| Photo framing (x, y, zoom, edge colours) | `state/crops/NAME.json`, edited on the TV or the phone page; photos stored whole | Settings -> Photo -> Adjust framing -> Reset to automatic |
+
+Bug fixes: Clear Voice sent `on` (valid: `off/level1/level2/level3`), Sound mode offered invalid `cinema/clearVoice`, LG logo light sent `on` (valid: `off/low/medium/high`). During the tests Clear Voice was set to level 2 once and put back to Off.
+Quick Start was already on (`option.quickStartMode`), left on; it is a normal power state and does not conflict with the init hook (nothing re-runs on wake; RAM-only changes stay).
+Tried and dropped: hiding the Magic Remote pointer through `com.webos.service.mrcu/activateMotionSensor {"activate":false}`: the TV accepts it, the arrow still appears (tested with the owner's remote). Not offered in the UI.
+A mistake worth remembering: full-size photos (3.6 MP) made the Home page grow to 152 MB and the TV swap until SSH timed out; stored photos are now capped to 2.6 MP and Home frees its background during the screensaver.
+Measured (`tools/bench-quick.sh`, 3 reps, `results/before-r3.txt` vs `after-r3.txt`): YouTube cold open median 2512 -> 1284 ms; Netflix 1498 -> 1679 ms (noise); Home 1232 -> 1214 ms; RAM available and swap about the same. The RAM copy gives no measurable Home start gain (flash was already in page cache); the pre-loading trim helps app launches.
+`tools/safety-test.sh` (results/safety-test-3.txt): API watchdog and crash-loop guard pass; test A now ends at the "no launcher files" early exit. `tools/check.sh`: ALL CHECKS PASSED (includes our Settings overlay).
+
+## Added in round 4 (2026-10-26: Back on Home, pointer switch)
+
+| What | Where / command | Undo |
+|---|---|---|
+| Back on Home returns to the last app / input | `lastapp.sh` (subscribes to SAM `getForegroundAppInfo`, keeps the newest non-Home app in `/tmp/lastapp`), `api.sh /api/back`, `goBack()` in `app.js` (keys 461 / Esc / Backspace on Home when nothing is open). Started by `home-on.sh` and the 5-min sweep | `lastapp.sh stop` (also done by `home-off.sh` / `revert.sh`); RAM only |
+| Back from an app returns to the previous app (Home if none) | `backchain.sh` + `keywatch.py` (read-only reader of the remote's evdev devices, reports KEY_BACK), history in `/tmp/appstack` kept by `lastapp.sh` (closed apps skipped). After Back, if the app quit and Home is in front 2 s later, the previous entry is launched. Switch: Settings -> Remote & pointer, flag `state/backchain-off`, `/api/backchain` | switch off in Settings, or `backchain.sh stop` (also `home-off.sh` / `revert.sh`); RAM only |
+| Experimental pointer switch (Settings -> Remote & pointer -> "Pointer only when I shake the remote") | `pointer.sh off|on`: `mrcu/cursor/setWakeUpCondition {"condition":"shake"}` + `activateMotionSensor {"activate":false}`, re-applied by a 10 s watcher whenever the remote reconnects; flag `state/pointer-off`; `/api/pointer` | switch it off in Settings, or `sh pointer.sh on`; `revert.sh` runs it; a TV restart also resets it |
+
+Verified: foreground tracking (hdmi2 -> Home -> `/api/back` returned to hdmi2), injected Back key (461) on the real Home page returned to hdmi2, `pointer.sh off/on` round trip with the remote asleep (flag + watcher start/stop), `tools/check.sh`: ALL CHECKS PASSED.
+**Not verified:** whether the shake setting actually stops the arrow showing (the remote was asleep, so the TV could not accept the request during testing), and the physical remote's Back key (only an injected 461 was tested).
+
+Back chain verified with injected Back key events written to the IR remote's evdev device (`/dev/input/event1`, 16-byte input_event, KEY_BACK=158): app quits to Home -> previous app opens; app keeps the key -> nothing; nothing before it -> stays on Home; switch off -> Home. Pointer switch was turned ON at the owner's request (2026-10-26); applies when the remote wakes. Physical remote not tested by the agent.

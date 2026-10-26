@@ -15,7 +15,9 @@ html{font-size:calc(100vw / 120)}
 html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:"LG Smart UI","Segoe UI",Helvetica,Arial,sans-serif;cursor:default}
 .bgl{position:fixed;left:0;top:0;width:100%;height:100%;opacity:0;transition:opacity 2.4s ease;will-change:opacity}
 .bgl.show{opacity:1}
-.bgl img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover}
+.stage{position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;background:#0e1118}
+.stage img{position:absolute;max-width:none;display:block}
+.stage .fl{position:absolute;display:none}
 #scrim2{position:fixed;left:0;top:0;width:100%;height:100%;opacity:0;transition:opacity 1.5s;pointer-events:none;
   background:linear-gradient(90deg,rgba(8,10,15,.80) 0%,rgba(8,10,15,.45) 55%,rgba(8,10,15,.30) 100%),linear-gradient(0deg,rgba(8,10,15,.72) 0%,rgba(8,10,15,0) 50%),linear-gradient(180deg,rgba(8,10,15,.55) 0%,rgba(8,10,15,0) 28%)}
 body.hasbg #scrim2{opacity:1}
@@ -28,6 +30,7 @@ body.hasbg #time,body.hasbg #wtemp{text-shadow:0 .1rem .8rem rgba(0,0,0,.6)}
 body.hasbg .hbtn{background:rgba(8,10,15,.55);color:#cfd6e4}
 body.hasbg .hbtn.foc{color:#fff}
 #header{height:11.6rem;padding:2.6rem 6rem 0 6rem;display:flex;align-items:flex-start;justify-content:space-between}
+#hero{height:23rem}
 #clock{display:flex;flex-direction:column}
 #time{font-size:4.6rem;font-weight:300;letter-spacing:-.05rem;line-height:1}
 #time small{font-size:1.7rem;margin-left:.6rem;color:var(--dim);font-weight:400;letter-spacing:0}
@@ -53,9 +56,9 @@ body.hasbg .hbtn.foc{color:#fff}
 .tile.foc .ic{transform:scale(1.12)}
 .tile.foc .nm{transform:translateY(.9rem);color:#fff}
 .tile .nm{margin-top:1.1rem;font-size:1.35rem;color:var(--dim);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .15s,transform .18s}
-.big{width:16rem;margin-right:2.6rem}
-.big .ic{width:15rem;height:15rem;border-radius:3.2rem}
-.big .ring{border-radius:3.5rem}
+.big{width:14.2rem;margin-right:2.2rem}
+.big .ic{width:12.8rem;height:12.8rem;border-radius:2.8rem}
+.big .ring{border-radius:3.1rem}
 .sm{width:11rem;margin:0 1.4rem 2.4rem 0}
 .sm .ic{width:9.6rem;height:9.6rem;border-radius:2.2rem}
 .sm .ring{border-radius:2.5rem}
@@ -63,8 +66,8 @@ body.hasbg .hbtn.foc{color:#fff}
 /* screensaver / AFK */
 #saver{position:fixed;left:0;top:0;width:100%;height:100%;background:#000;opacity:0;visibility:hidden;transition:opacity 1.2s ease,visibility 0s 1.2s;z-index:50}
 #saver.on{opacity:1;visibility:visible;transition:opacity 1.2s ease}
-#saver img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 1.6s ease}
-#saver img.show{opacity:1}
+#saver .stage{opacity:0;transition:opacity 1.6s ease}
+#saver .stage.show{opacity:1}
 #saver.nophoto{background:radial-gradient(ellipse at 30% 80%,#16213a 0%,#06080d 70%)}
 #scrimS{position:absolute;left:0;bottom:0;width:100%;height:24rem;z-index:2;background:linear-gradient(to top,rgba(0,0,0,.65),rgba(0,0,0,0))}
 #sinfo{position:absolute;left:4.5rem;bottom:3.6rem;z-index:3;text-shadow:0 .1rem .7rem rgba(0,0,0,.75);transition:left 2s ease,bottom 2s ease}
@@ -104,7 +107,6 @@ body.hasbg .hbtn.foc{color:#fff}
 #sethead{position:absolute;left:0;top:0;width:100%;height:9rem;padding:3rem 6rem 0;display:flex;justify-content:space-between;align-items:baseline}
 #sethead h1{font-size:3.4rem;font-weight:300}
 #sethead span{font-size:1.3rem;color:var(--dim)}
-#setcats{position:absolute;left:6rem;top:9.5rem;width:30rem}
 .scat{position:relative;padding:1.3rem 1.8rem;margin-bottom:.5rem;border-radius:1.2rem;font-size:1.7rem;color:#aab2c3;display:flex;align-items:center}
 .scat svg{width:2.2rem;height:2.2rem;margin-right:1.2rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .scat.cur{background:rgba(255,255,255,.08);color:#fff}
@@ -130,14 +132,52 @@ body.hasbg .hbtn.foc{color:#fff}
 .sl i{position:absolute;left:0;top:0;height:100%;border-radius:.4rem;background:#fff}
 .srow.foc .sl{background:rgba(0,0,0,.2)}.srow.foc .sl i{background:#0a0c11}
 .ch b{font-weight:500}
+.ch{white-space:nowrap}
+.srow .val{flex:none}
 .gthumbs{display:flex;flex-wrap:wrap;margin-top:.6rem}
 .gt{position:relative;width:17.2rem;height:9.7rem;margin:0 1.2rem 1.4rem 0;border-radius:1rem;overflow:hidden;background:#1a1e28}
-.gt img{width:100%;height:100%;object-fit:cover;display:block}
+.gt .stage{background:#10141c}
 .gt.foc{outline:.3rem solid #fff;transform:scale(1.04);z-index:2}
+
+/* settings pane additions */
+.shead{font-size:1.2rem;letter-spacing:.16rem;text-transform:uppercase;color:var(--dim);margin:2rem 0 .8rem .6rem}
+.shead:first-child{margin-top:.2rem}
+.srow .lab small.warn{color:#ffb86b}
+.srow.foc .lab small.warn{color:#8a4b00}
+.srow.dis{opacity:.6}
+.srow .lab{max-width:64%}
+.srow .val .ok{color:#2ecc71;font-size:1.3rem;margin-right:1.2rem}
+.srow.foc .val .ok{color:#14803f}
+#setcatsbox{position:absolute;left:6rem;top:9.5rem;width:30rem;bottom:3rem;overflow:hidden}
+#setcats{position:absolute;left:0;top:0;width:100%;will-change:transform;transition:transform .2s ease}
+.scat{padding:1.1rem 1.8rem;margin-bottom:.4rem;font-size:1.6rem}
+/* hide the pointer on our own pages (setting: Remote -> Hide the pointer on Home) */
+body.nocursor,body.nocursor *{cursor:none !important}
+/* Settings as an overlay page (the remote's Settings key): a panel on the left, the running app stays visible on the right */
+html.mode-settings,body.mode-settings{background:transparent}
+body.mode-settings > #view,body.mode-settings > #bgA,body.mode-settings > #bgB,body.mode-settings > #scrim2,body.mode-settings > #glowA,body.mode-settings > #glowB,body.mode-settings > #saver{display:none}
+body.mode-settings #settings{width:88rem;right:auto;background:linear-gradient(90deg,rgba(9,11,16,.985) 0,rgba(9,11,16,.985) 91%,rgba(9,11,16,0) 100%)}
+body.mode-settings #sethead{padding:2.6rem 3rem 0 3.4rem;width:84rem}
+body.mode-settings #sethead span{display:none}
+body.mode-settings #setcatsbox{left:2.6rem;width:24rem}
+body.mode-settings #setpane{left:29rem;right:7rem}
+body.mode-settings .gt{width:11.4rem;height:6.5rem;margin-right:.9rem;margin-bottom:1rem}
+/* photo framing editor: the photo fills the screen exactly like Home/screensaver do, with a see-through copy of Home on top */
+#editor{position:fixed;left:0;top:0;width:100%;height:100%;background:#000;display:none;z-index:75}
+#editor.on{display:block}
+#edstage{position:absolute;left:0;top:0;width:100%;height:100%}
+#ghost{position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;pointer-events:none;opacity:.5;display:none}
+#ghost.on{display:block}
+#ghost .tile.foc .ic,#ghost .hbtn.foc{transform:none}
+#ghost .ring{display:none}
+#edbar{position:absolute;left:50%;bottom:2.4rem;transform:translateX(-50%);padding:1rem 2.2rem;border-radius:1.2rem;background:rgba(10,12,17,.82);font-size:1.4rem;color:#dfe4ef;white-space:nowrap}
+#edbar b{color:#fff;font-weight:600}
+#edbar .pill{display:inline-block;margin:0 1.4rem 0 0;padding:.3rem 1rem;border-radius:1rem;background:#fff;color:#0a0c11;font-weight:600}
+#edinfo{position:absolute;right:3rem;top:2.4rem;padding:.6rem 1.4rem;border-radius:1rem;background:rgba(10,12,17,.82);font-size:1.4rem;color:#dfe4ef}
 </style>
 </head>
 <body>
-<div id="bgA" class="bgl"><img alt=""></div><div id="bgB" class="bgl"><img alt=""></div><div id="scrim2"></div>
+<div id="bgA" class="bgl"></div><div id="bgB" class="bgl"></div><div id="scrim2"></div>
 <div id="glowA"></div><div id="glowB"></div>
 <div id="view">
   <div id="header">
@@ -149,22 +189,26 @@ body.hasbg .hbtn.foc{color:#fff}
       <div class="hbtn" id="b-settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span><div class="ring"></div></div>
     </div>
   </div>
+  <div id="hero"></div>
   <div class="row"><div class="rowlabel">Favorites</div><div id="dock"></div></div>
   <div class="row"><div class="rowlabel">Apps</div><div id="grid"></div></div>
 </div>
-<div id="saver"><img id="sa" alt=""><img id="sb" alt=""><div id="scrimS"></div>
+<div id="saver"><div id="scrimS"></div>
   <div id="sinfo"><div class="t"></div><div class="d"></div><div class="w"></div></div></div>
 <div id="panel"><div id="pbox"><div id="ptitle"></div><div id="plist"></div><div id="phint">OK to select &nbsp;&middot;&nbsp; Back to close</div></div></div>
 <div id="settings">
   <div id="sethead"><h1>Settings</h1><span>&#9664; &#9654; change &nbsp;&middot;&nbsp; OK select &nbsp;&middot;&nbsp; Back</span></div>
-  <div id="setcats"></div>
+  <div id="setcatsbox"><div id="setcats"></div></div>
   <div id="setpane"><div id="setinner"><div id="settitle"></div><div id="setdesc"></div><div id="setrows"></div></div></div>
 </div>
 <div id="qrm"><div id="qrbox"><h2>Add photos from your phone</h2><div>Scan with your phone camera (same Wi-Fi)</div><canvas id="qrcv" width="280" height="280"></canvas><div id="qrurl"></div><p>Pick photos on your phone; they are cropped to fit the TV automatically and appear in the gallery. Back to close.</p></div></div>
 <div id="keym"><div id="keybox"><h2 id="ktitle"></h2><div id="kdisp"></div><div id="kpad"></div></div></div>
+<div id="editor"><div id="edstage"></div><div id="ghost"></div><div id="edinfo"></div>
+  <div id="edbar"><span class="pill" id="edmode">Move</span><b>&#9664; &#9650; &#9660; &#9654;</b> move the view &nbsp;&middot;&nbsp; <b>OK</b> switch Move / Zoom &nbsp;&middot;&nbsp; <b>Back</b> menu (save, reset, overlay)</div></div>
 <div id="toast"></div>
 <!--MOCK-->
 <script src="qr.js"></script>
+<script src="stage.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
