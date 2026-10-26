@@ -164,3 +164,12 @@ Verified on the TV: dim 100 -> 40 -> restore; sweep restores when the marker is 
 | Quiet background check on start and then every N hours | `appupdate.sh due` (cheap, no luna call) asked by the launcher watchdog every 20 s: once per boot 30 s after the launcher is ready (`startup=on`), then every `every` hours (default 6, 0 = never); manual mode never checks. Settings -> App updates: **Update apps automatically**, **Check when the TV starts**, **Then check every**, **Check for app updates now**. State `state/appupdate.conf`, API `/api/appupdates/conf?k=startup|every&v=` | Settings, or edit `state/appupdate.conf` |
 
 Verified: conf get/set through the API, `due` for boot-like, just-checked, 4 h-ago/3 h and 6 h cases. The list label changed from "Updates waiting" to "Flagged by LG": Peacock and Prime Video have been flagged (`status:"Y"`) for over four hours with unchanged versions, so that list is not proof that an update exists.
+
+## Round 7c: LG's quick panel switched off inside the compositor, pointer attempts, wheel and click support
+
+| What | Where / command | Undo |
+|---|---|---|
+| LG's quick panel never opens; scroll-wheel pointer key and mouse events switched off (best effort) | `tv/qspatch.sh` (services item `qspatch`, default on, group "Remote & Settings"): patched copies of `/usr/lib/qt5/qml/KeyFilters/appLaunch.js` (`openSettings` returns at once) and `systemUi.js` (`compositor.mouseEventEnabled=false` in `init()`, `Key_webOS_CursorShow` swallowed in three handlers, all try/catch) generated on the TV from its own files into `/tmp/keyfilters-patched`, bind-mounted, `initctl restart surface-manager` (about 10 s black), health check, automatic rollback, 180 s reboot watchdog, `state/qspatch.trying` boot guard | Settings -> Services & privacy switch, `sh qspatch.sh undo`, `./revert.sh`, or a reboot (stock) |
+| Pointer: wheel scrolls, hover and click everywhere | `app.js`: `wheel` -> same handler as Up/Down; hover/click on pop-up lists, number pad, QR page, Settings rail/rows, Home tiles | - |
+
+Verified: apply, undo and re-apply through the Settings API (each about 10 s, UI healthy), `tools/check.sh` and `tools/keys-test.sh` pass with the patch active; the build prints exactly the intended diff. NOT verified: that the real gear key shows only our panel, and that the wheel no longer shows the arrow (the agent cannot press the key or see the screen). An injected wheel/move/click test reached the Home page neither with nor without the patch, so it proves nothing.

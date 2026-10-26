@@ -137,6 +137,14 @@ Facts verified on webOS 4.5 (re-verify on other versions):
 - **Back on Home**: Home gets keyCode 461 like the Settings page; `goBack()` calls `/api/back`, which relaunches `/tmp/lastapp` (kept by `lastapp.sh` from SAM's foreground subscription). Verified with an injected key only.
 - Python 2.7 on the TV has `json`: handy for parsing luna replies in scripts.
 
+### Round 7 facts (verified on the dev TV, webOS 4.5)
+
+- **Backlight**: `picture.backlight` is per picture context (the `dimension` in the reply: input `default` = Home, `hdmi2`, picture mode...). `backlight.sh` stores value AND dimension and restores with that dimension; restoring while another input is in front would set the wrong context. Restore paths: page wake, `lastapp.sh`, boot, sweep (`/tmp/saver-on` stale 3 min), home-off, revert.
+- **Compositor patch (`qspatch.sh`)**: LG's key filters are plain JS in `/usr/lib/qt5/qml/KeyFilters/` loaded when surface-manager starts. Bind-mount generated copies (never commit LG's files), then `initctl restart surface-manager`: WebAppMgr stops with it and comes back on its own (`start on lsm-ready`; `initctl emit wam-start` if not), SAM relaunches Home through our stand-in. The globals `compositor`, `homeView`, `global`, `lunaCall` exist in that scope; wrap anything new in try/catch. Run `qspatch.sh build` (prints the diff, mounts nothing) before changing the patch logic. A restart takes about 10 s.
+- **`compositor`** (LG's C++ object) has properties `cursorVisible` and `mouseEventEnabled`; `YSM/StarfishKeyFilter.qml` and `YSM/YSM.qml` show how they are used. The effect of `mouseEventEnabled=false` on the arrow is UNVERIFIED.
+- Running shell loops (`home-on.sh` watchdog, `settings-hook.sh`, `lastapp.sh`, `backchain.sh`) keep their OLD code after a deploy: restart them (`home-off.sh temp` then `home-on.sh`) before testing a change to them.
+- App updates: `appupdate.sh due` decides background checks (startup once per boot 30 s after `launcher.ready`, then every N h; `state/appupdate.conf`). The `status:"Y"` list did not change in over four hours: do not present it as "updates waiting".
+
 ### Round 5 facts (verified on the dev TV, webOS 4.5)
 
 - **LG's gear panel** is QML inside surface-manager (`/usr/lib/qt5/qml/QuickSettings/`), preloaded at boot. The gear key logs `lginput2 NL_BUTTON_CLICK ... "button_type":"KEY_SETTINGS"` about 0.5 s before the panel shows; `KeyFilters/appLaunch.js` calls `systemUIManager /launch`. Close it with `luna://com.webos.service.systemUIManager/closeByAppId {"appId":"com.webos.app.quicksettings"}` (`surfacemanager/closeByAppId` says "not supported"; `{"id":...}` is ignored). Its items: picture mode, aspect ratio, sound mode (+effect), sound out (+device), sleep timer, network, all settings.

@@ -70,13 +70,18 @@ Recovery layers are unchanged and tested (`tools/safety-test.sh`): `./revert.sh`
 * **Reading** those devices is safe and gives us the Back key early (`keywatch.py`). **Writing** a 16-byte `input_event` to `/dev/input/event1` injects a key as if pressed: this is how `tools/keys-test.sh` tests without the remote.
 * `lginput2`'s luna service (`com.webos.service.mrcu`) has `activateMotionSensor`, `/cursor/setWakeUpCondition {motion|shake}`, `/cursor/setPosition`, `/sensor/setCursorBounds`, `setHotkeyCursorPolicy` (button index + policy). They answer **only while the remote is awake** (`Magic Remote is not Ready` otherwise) and a reconnect resets them. None of them is a documented "hide the pointer". The current attempt (wake on shake + sensor off + parking the arrow in the bottom-right corner) is **unverified**.
 * Surface-manager has no luna method for cursor visibility (it has a Wayland `set_cursor_visibility` request used by clients).
-* *Remaining ideas, none done:* a uinput proxy that re-emits only keys (high risk: if it dies the remote is dead until the process ends); patching surface-manager's QML (needs a compositor restart).
+* **Round 7 additions (unverified, the agent cannot see the screen or turn the wheel):** `qspatch.sh` also makes `systemUi.js` run `compositor.mouseEventEnabled = false` at start (the compositor object is global in LG's QML, `YSM/StarfishKeyFilter.qml` reads `compositor.cursorVisible`; both are inside try/catch) and swallow `Key_webOS_CursorShow` in three handlers. LG's own comment says cursor keys are handled in the C++ compositor, so the swallow may be too late; the property is the stronger attempt. A test that injected wheel/move/click events into the M-RCU uinput devices reached the Home page neither with the patch nor without it, so it proves nothing either way.
+* *Remaining ideas, none done:* a uinput proxy that re-emits only keys (high risk: if it dies the remote is dead until the process ends).
 
 ## 4. The Settings key and LG's quick panel
 
 * The gear key logs `lginput2 NL_BUTTON_CLICK ... KEY_SETTINGS`; about 0.5 s later `KeyFilters/appLaunch.js` (JavaScript loaded by surface-manager) calls `systemUIManager /launch com.webos.app.quicksettings`, and the QML panel (`/usr/lib/qt5/qml/QuickSettings/`, preloaded at boot) appears. The panel offers exactly: **Picture mode, Aspect ratio, Sound mode (+ Sound effect), Sound out (+ device), Sleep timer, Network, All settings.** The new **Quick settings** category contains all of those.
 * Our hook now opens our overlay from the first log line and closes LG's panel with `systemUIManager/closeByAppId {"appId":...}` (the `surfacemanager/closeByAppId` call used before is refused). On this TV LG's panel is still visible for about 1 s, because every process start costs about 100-300 ms while the TV swaps.
-* **Removing the flash completely is possible but needs a compositor restart:** bind-mount a copy of `appLaunch.js` whose `openSettings()` launches our overlay directly (or does nothing), then restart surface-manager (`initctl restart surface-manager`; the screen goes dark for a few seconds, WAM pages restart). Not done: it is the one change in this project that could leave the TV without a picture if it goes wrong. Do it only with a way to reach the TV (Telnet/SSH stays up independent of the compositor) and after reading `AGENTS.md`. Effort: M, risk: medium-high.
+* **Done in round 7 (`tv/qspatch.sh`, Services switch, on by default).** A copy of `appLaunch.js` whose `openSettings()` returns at once (plus `systemUi.js` with the pointer changes, section 3) is generated on the TV from LG's own files, validated, bind-mounted from RAM, and the compositor is restarted once. Upstart restarts WebAppMgr and SAM by itself (`WebAppMgr` is `stop on stopping surface-manager`, `start on lsm-ready`); the script waits for all of them and for our launcher.
+  * **What it buys:** LG's QML panel is never created, so there is no flash and no competing CPU/memory use while our overlay starts (the overlay was taking about 1.5 s from the key against about 1.0 s on its own: the difference is that contention).
+  * **What it costs:** about 10 s of black screen and all open apps closed, once per apply/undo and once per cold boot (the hook runs after the compositor is up). The picture/aspect/sleep hotkeys no longer open LG's panel either.
+  * **Risk and reversal:** nothing on the read-only partition changes. Failure modes and their handling: generated files fail the checks (marker count, brace balance, size) -> refused; compositor or WebAppMgr not back -> `wam-start` emitted, then rollback (unmount, restart); launcher not ready after the restart -> rollback; the script hangs -> a RAM watchdog unmounts and reboots after 180 s; a reboot is always stock; `state/qspatch.trying` stops a boot from repeating an attempt that never finished (it switches the item off). Reverse by hand: `sh qspatch.sh undo`, the Services switch, or `./revert.sh`. Tested on the dev TV: apply, undo and re-apply through the Settings API, about 10 s each, UI healthy every time, `tools/check.sh` and `tools/keys-test.sh` pass with it active.
+  * **Failure it cannot cover by itself:** a patched file that loads but misbehaves (keys wrong). The key-filter edits are one inserted `return`, one `try/catch` in `init()` and three `if (key === CursorShow)` lines; SSH/Telnet keep working regardless, and `qspatch.sh undo` or a reboot removes them.
 
 ## 5. UI and feature backlog (not built yet)
 
@@ -88,7 +93,7 @@ Ranked by value for effort. S = under a day, M = a few days, L = a week or more.
 | 2 | **Health page** in Settings: uptime, memory/swap, update-lock status (4/4), ad counts, last app-update check, watcher status | One place to see that everything is still in force; `tools/check.sh` already computes most of it | S |
 | 3 | **Recent apps row** on Home (from the history `lastapp.sh` already keeps) | Faster than the grid for the 3-4 apps you really use | S |
 | 4 | **Input names** (HDMI 1 = "PlayStation") | The Inputs button lists HDMI 1-4 only | S |
-| 5 | **Night-time dimming**: saver brightness follows the clock; optional real backlight dim (LG `picture.backlight`, restored on wake) | Today the dim is a software layer; the backlight stays at 100 % | S / M |
+| 5 | **Night-time dimming**: saver backlight/dim follows the clock (the real backlight dim itself exists since round 7) | Darker at night, brighter by day | S |
 | 6 | **Hide / reorder apps on the TV** (today via the phone page / settings.json) | Needs only list UI + the existing `hide`/`dock` settings | S |
 | 7 | **Phone as remote** (D-pad, Back, Home, volume) over the LAN, token protected, using the evdev injection found above | Replaces a lost remote; the injection is already proven | M |
 | 8 | **Settings backup / restore** (our settings + about 90 LG keys) to one JSON file | Makes a new TV or a factory reset a 1-minute job | M |
@@ -100,7 +105,7 @@ Ranked by value for effort. S = under a day, M = a few days, L = a week or more.
 | 14 | **systemd port** (webOS 5+): `do_upstart` -> `systemctl --no-block stop`, `diagnose.sh` already says which one the TV uses | The main blocker for other TVs | L |
 | 15 | **Translations** (strings are in `app.js`, ES5) | Anyone not reading English | M |
 | 16 | **Fix the pointer for real** (section 3) or drop the option | Currently experimental and unverified | ? |
-| 17 | **Remove LG's panel flash** (section 4) | Cosmetic, risky | M |
+| 17 | ~~Remove LG's panel flash~~ done in round 7 (section 4) | | |
 
 ## 6. Test coverage
 

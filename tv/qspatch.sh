@@ -6,7 +6,8 @@
 # afterwards, so it flashes for about a second and steals CPU while our overlay starts. The key handling is plain JavaScript in /usr/lib/qt5/qml/KeyFilters/:
 #   appLaunch.js  openSettings(params)  -> we make it return at once (the gear / picture / aspect / sleep hotkeys no longer open LG's panel)
 #   systemUi.js   handleScreenSaver / handleHomeKeys / handleSystemKeys -> swallow Key_webOS_CursorShow, the key the scroll wheel sends to show the pointer.
-#                 UNVERIFIED: LG's comment says cursor keys are handled in the C++ compositor, which may see that key before these filters do.
+#                 and init() sets compositor.mouseEventEnabled = false (try/catch). UNVERIFIED: LG's comment says cursor keys are handled in the C++ compositor, which may see
+#                 that key before these filters do; whether mouseEventEnabled=false removes the arrow is for the owner to see.
 # HOW: the patched files are generated on the TV from the TV's own originals (LG's code is never copied into this repo), placed in RAM (/tmp/keyfilters-patched)
 # and bind-mounted over the originals. The compositor reads them only when it starts, so apply restarts it (`initctl restart surface-manager`): the screen goes
 # dark for several seconds and every app is closed. Nothing on the read-only system partition changes; a reboot is stock.
@@ -19,17 +20,24 @@ FLAG=$STATE/qspatch-on; TRY=$STATE/qspatch.trying
 svc_up() { initctl status "$1" 2>/dev/null | grep -q "start/running"; }
 patched() { is_mounted $KF/appLaunch.js; }
 
+bal() { echo $(( $(tr -cd '{' < $1 | wc -c) - $(tr -cd '}' < $1 | wc -c) )) ; }     # braces open minus closed
 build() { # generate the two patched files from the originals; prints nothing on success
   rm -rf $PD; mkdir -p $PD || return 1
   # when already mounted the visible file is the patched one: take the original from a fresh read of the underlying squashfs path is not possible, so refuse
   patched && return 1
   awk '{print} /^function openSettings\(params\) \{/ {print "    return;   // tv-debloat: our Settings overlay replaces LG'"'"'s quick panel"; n++} END{if (n != 1) exit 3}' $KF/appLaunch.js > $PD/appLaunch.js || return 1
-  awk '{print} /^function (handleScreenSaver|handleHomeKeys|handleSystemKeys)\(key, pressed, autoRepeat\) \{/ {print "    if (key === WebOS.Key_webOS_CursorShow) return KeyPolicy.Accepted;   // tv-debloat: wheel must not show the pointer"; n++} END{if (n != 3) exit 3}' $KF/systemUi.js > $PD/systemUi.js || return 1
+  # systemUi.js: init() switches the compositor's mouse events off (compositor.mouseEventEnabled is a property of LG's compositor object, see YSM/StarfishKeyFilter.qml
+  # which reads compositor.cursorVisible); the three key handlers swallow Key_webOS_CursorShow and also try to hide the cursor. Everything is inside try/catch: if an
+  # object or property is not there on another firmware, nothing happens instead of an error in the key filter.
+  awk '{print}
+    /^function init\(\) \{/ {print "    try { compositor.mouseEventEnabled = false; } catch (e) {}   // tv-debloat: the pointer is useless here, do not deliver its events"; n++}
+    /^function (handleScreenSaver|handleHomeKeys|handleSystemKeys)\(key, pressed, autoRepeat\) \{/ {print "    if (key === WebOS.Key_webOS_CursorShow) { try { compositor.mouseEventEnabled = false; compositor.cursorVisible = false; } catch (e) {} return KeyPolicy.Accepted; }   // tv-debloat: wheel must not show the pointer"; m++}
+    END{if (n != 1 || m != 3) exit 3}' $KF/systemUi.js > $PD/systemUi.js || return 1
   # checks: one inserted line in appLaunch.js, equal numbers of braces and brackets as the original, sizes within 1 KB
-  [ "$(grep -c 'tv-debloat' $PD/appLaunch.js)" = 1 ] || return 1
+  [ "$(grep -c 'tv-debloat' $PD/appLaunch.js)" = 1 ] && [ "$(grep -c 'tv-debloat' $PD/systemUi.js)" = 4 ] || return 1
   for f in appLaunch.js systemUi.js; do
-    a=$(tr -cd '{}[]' < $KF/$f | wc -c); b=$(tr -cd '{}[]' < $PD/$f | wc -c); [ "$a" = "$b" ] || return 1
-    sa=$(wc -c < $KF/$f); sb=$(wc -c < $PD/$f); [ $((sb - sa)) -ge 0 ] && [ $((sb - sa)) -le 1024 ] || return 1
+    [ "$(bal $KF/$f)" = "$(bal $PD/$f)" ] || return 1
+    sa=$(wc -c < $KF/$f); sb=$(wc -c < $PD/$f); [ $((sb - sa)) -ge 0 ] && [ $((sb - sa)) -le 2048 ] || return 1
   done
   return 0
 }
@@ -69,6 +77,9 @@ case ${1:-status} in
           mount_patch || { rollback "mount failed"; echo "mount failed"; exit 1; }
           if restart_ui; then touch "$FLAG"; rm -f "$BUSY" "$TRY"; log "qspatch: applied, UI healthy"; echo "applied"
           else rollback "UI not healthy after the restart"; echo "rolled back"; exit 1; fi;;
+  reapply) patched || { echo "not applied"; exit 1; }   # regenerate and reload after this script changed (one restart)
+          touch "$BUSY"; date > "$TRY"; watchdog; umount_patch
+          if build && mount_patch && restart_ui; then touch "$FLAG"; rm -f "$BUSY" "$TRY"; log "qspatch: re-applied, UI healthy"; echo "re-applied"; else rollback "re-apply failed"; echo "rolled back"; exit 1; fi;;
   undo)   touch "$BUSY"; watchdog; umount_patch; rm -f "$FLAG"
           if restart_ui; then log "qspatch: undone, UI healthy"; echo "undone"; else rollback "UI not healthy after undo"; fi; rm -f "$BUSY" "$TRY";;
   boot)   # used by debloat.sh (boot and the Settings switch): never repeats an attempt that did not finish

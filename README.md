@@ -33,14 +33,14 @@ which both skip webOS 4 (Upstart instead of systemd, no usable Node). See [NOTIC
 
 ### Home and screensaver
 * **Home**: clock, date, weather (Open-Meteo, Fahrenheit by default, ZIP or automatic), Inputs / Network / Settings buttons, a favorites row (Netflix, YouTube, Hulu, Disney+) with a colour glow, a grid of every other app, and your photos as a slowly rotating background.
-* **Screensaver / AFK screen**: after idle time a clock, date and weather over a gallery photo, **dimmed** (Settings -> Home & Screensaver -> Screensaver dimming, default 45 %) so the picture and time stay readable but not at full brightness. The text drifts to avoid burn-in.
+* **Screensaver / AFK screen**: after idle time a clock, date and weather over a gallery photo, **dimmed twice**: the TV's **real backlight** goes down to 50 % (Settings -> Home & Screensaver -> Screensaver backlight; saves power; restored five independent ways, so a reboot or a crash can never leave the TV dim) and a software layer darkens the photo 30 % (Screensaver dimming) while the clock stays bright. The text drifts to avoid burn-in.
 * **Back on Home** returns to the last app or input; **Back from an app** returns to the previous app and falls back to Home when there is none (switchable). Verified with injected key events (`tools/keys-test.sh`).
-* **Pointer**: Home and Settings react to hover/click if the pointer ever shows. An experimental switch asks the Magic Remote to show its arrow only after a shake and parks it in a screen corner (**unverified**, see the audit).
+* **Pointer**: hover and click work on Home tiles, the Settings rail and rows, pop-up lists, the number pad and the QR page, and the **scroll wheel scrolls** those lists like Up/Down. To get rid of the arrow itself, three independent attempts are active (all **unverified**, see the audit): the compositor patch below (mouse events off, wheel key swallowed), a remote-side switch (arrow only after a shake, parked in a screen corner), and Home/Settings hiding the browser's own arrow.
 
 ### Settings (replaces LG's quick panel and most of LG's Settings app)
 * The remote's **Settings (gear) key** opens our overlay: a **slim icon rail** that unfolds a category on OK and folds again on Back. The first icon, **Quick settings**, has exactly what LG's panel has (picture mode, aspect ratio, sound mode, sound out, sleep timer, network, all settings).
 * Categories: Quick settings, Home & Screensaver, Weather, Photo gallery, Picture, Sound, Power & timers, Inputs & HDMI, Remote & pointer, Accessibility, Network, Ad blocking, Services & privacy, **App updates**, About & updates, and a link to LG's legacy Settings (Wi-Fi setup, accounts, channels). Values and option lists come from LG's own settings schema; about 90 LG keys are written and re-tested (`tools/lg-settings-test.sh`).
-* The Settings key opens ours within about a second; LG's panel is closed the moment it appears (it still shows briefly, see [the audit](docs/AUDIT.md#4-the-settings-key-and-lgs-quick-panel)).
+* **LG's quick panel never opens any more.** A switch in Services (*Hide LG's quick panel...*, on by default) loads patched copies of two of LG's key-filter scripts (generated on the TV from its own files, kept in RAM, never stored in this repo) into the display software, so the gear key does nothing in LG's code and our overlay opens without a competing panel. It restarts the display software once (about 10 s of black screen), checks that everything came back, and rolls itself back (and, as a last resort, reboots into stock) if anything looks wrong. See [the audit](docs/AUDIT.md#4-the-settings-key-and-lgs-quick-panel).
 
 ### Photo gallery from the TV and your phone
 * *Settings -> Photo gallery* shows your photos; "Add photos from your phone" shows a QR code and the phone page uploads whole photos (shrunk to screen size) with automatic framing. A **framing editor** (TV remote or phone) moves/zooms the photo and shows a see-through copy of Home on top. Photos are private and git-ignored.
@@ -50,7 +50,7 @@ which both skip webOS 4 (Upstart instead of systemd, no usable Node). See [NOTIC
 * **Services & privacy**: every LG background service we stop is a switch: ad service, nudge, content miner, remote logging, voice, ThinQ/IoT, app pre-loading (including LG's unused stock Home), idle LG apps, TV guide downloader.
 
 ### Updates
-* **Apps update themselves.** All 13 user-installed apps carry LG's "check for an update when launched" flag, which is where the *"update this app?"* prompt comes from. `option.appUpdateMode=auto` makes the TV install updates in the background; Settings -> **App updates** lists installed apps with versions and waiting updates and has "Check now". The TV is asked 3 minutes after start and every 6 hours. (Whether an update actually installs on this TV could not be proven yet, see audit P6.)
+* **Apps update themselves.** All 13 user-installed apps carry LG's "check for an update when launched" flag, which is where the *"update this app?"* prompt comes from. `option.appUpdateMode=auto` makes the TV install updates in the background; Settings -> **App updates**: automatic updates on/off, **check when the TV starts** (a quiet check 30 s after the launcher is up), **check every** N hours (default 6), "Check now", the apps LG has flagged, and the installed apps with versions. (Whether an update actually installs on this TV could not be proven yet, see audit P6.)
 * **Firmware updates are blocked and locked**, with five independent layers: LG's own switch, update servers in the hosts file, the Upstart job stopped, `/usr/sbin/update` replaced by a do-nothing stub, and the API refusing those keys; a 5-minute sweep re-applies everything. There is no switch to turn it off.
 
 ### Always recoverable and measurable
@@ -114,6 +114,8 @@ Homebrew init.d/zz-debloat -> boot.sh -> debloat.sh apply ...   (hosts, initctl 
                                           |- settings-hook.sh   (log watcher: the gear key -> our overlay, LG's panel closed)
                                           |- lastapp.sh + backchain.sh + keywatch.py   (Back returns to the previous app)
                                           |- pointer.sh watch   (optional pointer switch, re-applied when the remote reconnects)
+                                          |- backlight.sh       (real backlight dim for the screensaver, restored five ways)
+                                          |- qspatch.sh         (applied by debloat.sh at boot: patched LG key filters bind-mounted, compositor restarted, auto rollback)
                                           '- the stand-in asks WebAppMgr (luna://com.palm.webappmanager/launchApp) to open launcher/index.html as
                                              com.webos.app.fullhome and registers with SAM so the Home key re-shows it.
                                              30 s ready check + watchdog (API self-heal, 5-min sweep, app-update check every 6 h) fall back to LG's Home.
@@ -142,7 +144,8 @@ install.sh  tv-env.sh  tv.conf.example  tv.sh  revert.sh      installer, where-i
 tv/                 deployed to /media/developer/tv-debloat on the TV
   boot.sh debloat.sh home-on.sh home-off.sh home-standin.sh api.sh common.sh revert.sh zz-debloat
   settings-hook.sh settings-open.sh   the gear key -> our overlay        lastapp.sh backchain.sh keywatch.py   Back returns to the previous app
-  appupdate.sh      app updates (mode, list, check now)                   pointer.sh   experimental pointer switch
+  appupdate.sh      app updates (mode, list, check now, due)              pointer.sh   experimental pointer switch
+  backlight.sh      real backlight dimming for the screensaver            qspatch.sh   LG quick panel off + pointer key swallowed (compositor restart, rollback)
   blocklist.sh blocklists/ services.tsv    ad lists and the services catalog
   launcher/         index.html (markup+CSS), app.js (logic), stage.js, qr.js (vendored), phone.html (the phone page), rootless.js (rootless adapter), appinfo.json, photos/ (private, git-ignored)
 tools/
