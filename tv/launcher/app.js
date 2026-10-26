@@ -21,7 +21,7 @@ var DEFAULTS = {
   weather: {mode: 'auto', zip: '', unit: 'F'},
   clock24: false,
   bg: {on: true, everyMin: 10},
-  saver: {on: true, idleMin: 2, photos: true, slideSec: 12, weather: true, dim: 45},
+  saver: {on: true, idleMin: 2, photos: true, slideSec: 12, weather: true, dim: 30, backlight: 50},
   ui: {hideCursor: true},
   dock: ['netflix','youtube.leanback.v4','hulu','com.disney.disneyplus-prod'],
   hide: ['webos.day','com.webos.app.homeconnect','com.webos.app.home','com.webos.app.fullhome']
@@ -315,6 +315,14 @@ function drift(){
   var s = $('sinfo'); s.style.left = (3 + Math.random() * 45) + 'rem'; s.style.bottom = (3 + Math.random() * 28) + 'rem';
   driftT = setTimeout(drift, 60000);
 }
+// the TV's real backlight: lowered while the screensaver runs (tv/backlight.sh keeps the original and restores it in five independent ways)
+var blOn = false, blT = null;
+function blDim(){
+  var p = S.saver.backlight === undefined ? 50 : S.saver.backlight; if (p >= 100 || MOCK) return;
+  blOn = true; api('/api/backlight?v=dim&pct=' + p, noop, 15000);
+  clearInterval(blT); blT = setInterval(function(){ if (saverOn) api('/api/backlight?v=hold', noop); }, 60000);
+}
+function blRestore(){ clearInterval(blT); if (blOn) { blOn = false; api('/api/backlight?v=restore', noop, 15000); } }
 function saverStart(){
   if (saverOn || document.hidden || mstack.length || settingsOn || SETMODE) return;
   saverOn = true; lastT = lastD = ''; tick(); wxRender();
@@ -322,14 +330,15 @@ function saverStart(){
   ['bgA', 'bgB'].forEach(function(id){ var l = $(id); l.className = 'bgl'; layerStage(l).lastChild.removeAttribute('src'); }); setBodyBg(false);
   var withPhotos = S.saver.photos && photos.length > 0;
   $('saver').className = 'on' + (withPhotos ? '' : ' nophoto');
-  $('sdim').style.opacity = ((S.saver.dim === undefined ? 45 : S.saver.dim) / 100);
+  $('sdim').style.opacity = ((S.saver.dim === undefined ? 30 : S.saver.dim) / 100);
+  blDim();
   $('scrimS').style.display = withPhotos ? 'block' : 'none';
   if (withPhotos) { pIx = (bgIx + 1) % photos.length; showNext(); } else { drift(); }
   dlog('saver on photos=' + withPhotos);
 }
 function saverStop(){
   if (!saverOn) return;
-  saverOn = false; clearTimeout(slideT); clearTimeout(driftT); $('saver').className = ''; $('sdim').style.opacity = 0;
+  saverOn = false; clearTimeout(slideT); clearTimeout(driftT); $('saver').className = ''; $('sdim').style.opacity = 0; blRestore();
   var sv = svStages(); sv[0].className = 'stage'; sv[1].className = 'stage';
   var s = $('sinfo'); s.style.left = ''; s.style.bottom = '';
   setTimeout(function(){ if (!saverOn) { sv[0].lastChild.removeAttribute('src'); sv[1].lastChild.removeAttribute('src'); } }, 1500);
@@ -502,7 +511,8 @@ cats = [
     tgl('Show gallery photos in screensaver', 'Off = dark screen with clock', function(){ return S.saver.photos; }, function(b){ setPath('saver.photos', b); }),
     chc('Photo changes every', '', [[8,'8 s'],[12,'12 s'],[20,'20 s'],[30,'30 s'],[60,'1 min']], function(){ return S.saver.slideSec; }, function(v){ setPath('saver.slideSec', v); }),
     tgl('Show weather in screensaver', '', function(){ return S.saver.weather; }, function(b){ setPath('saver.weather', b); wxRender(); }),
-    sld('Screensaver dimming', 'Darkens the photo so the screensaver is easy on the eyes; the clock stays bright. 0 = no dimming', 0, 80, 5, function(){ return S.saver.dim === undefined ? 45 : S.saver.dim; }, function(v){ setPath('saver.dim', v); }),
+    sld('Screensaver dimming', 'Darkens the photo so the screensaver is easy on the eyes; the clock stays bright. 0 = no dimming', 0, 80, 5, function(){ return S.saver.dim === undefined ? 30 : S.saver.dim; }, function(v){ setPath('saver.dim', v); }),
+    sld('Screensaver backlight', 'Lowers the TV’s real backlight while the screensaver runs (saves power, easier on the eyes). 100 = unchanged. It is always restored when you wake the TV.', 10, 100, 5, function(){ return S.saver.backlight === undefined ? 50 : S.saver.backlight; }, function(v){ setPath('saver.backlight', v); }),
     tgl('24-hour clock', '', function(){ return S.clock24; }, function(b){ setPath('clock24', b); })
   ]; }},
   {id: 'weather', name: 'Weather', icon: 'cloud', title: 'Weather', desc: 'Free forecasts from Open-Meteo.', build: function(){ return [

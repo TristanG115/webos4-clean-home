@@ -11,6 +11,7 @@ until lun luna://com.webos.applicationManager/running '{}' | grep -q returnValue
   sleep 3; n=$((n+3)); [ $n -gt 240 ] && { log "boot: SAM never answered"; exit 0; }
 done
 sleep 5
+[ -e "$STATE/backlight.orig" ] && sh "$D/backlight.sh" restore      # a screensaver dim must never survive a reboot
 # every switch that is ON in Settings -> Services & privacy (state/svc.conf, defaults in services.tsv)
 sh "$D/debloat.sh" apply >/dev/null 2>&1
 if sh "$D/home-on.sh" >/dev/null 2>&1; then echo 0 > "$STATE/boot-count"; log "boot: launcher up, boot-count reset"; else log "boot: launcher not active (LG Home in use)"; fi

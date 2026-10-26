@@ -147,3 +147,12 @@ Verified: mode switch, check request accepted, API routes, stub mounted, `tools/
 | Agent rules | `AGENTS.md` / `CLAUDE.md`: commit incrementally with a detailed log, push once at the end of a task | - |
 
 TV-side runtime effect of this round: only the preload policy for `com.webos.app.home`. `tools/check.sh`: ALL CHECKS PASSED after it.
+
+## Round 7 (2026-10-26): real backlight dimming in the screensaver
+
+| What | Where / command | Undo |
+|---|---|---|
+| Screensaver lowers the TV's REAL backlight | `tv/backlight.sh dim <pct>|hold|restore|sweep|status`: sets `picture.backlight` (percent of its value, floor 5) for the picture context active when the screensaver starts (Home = input "default"), remembers value + context in `state/backlight.orig` / `.dim`. Settings -> Home & Screensaver -> **Screensaver backlight** (default 50 %, 100 = off) and **Screensaver dimming** (software layer, default now 30 %). API `/api/backlight` | set the slider to 100; `sh backlight.sh restore` |
+| Five independent ways back to full backlight | page on wake (`blRestore`), `lastapp.sh` when anything but Home comes to the front, `boot.sh` at boot, the watchdog sweep (marker `/tmp/saver-on` older than 3 min), `home-off.sh`/`revert.sh` | - |
+
+Verified on the TV: dim 100 -> 40 -> restore; sweep restores when the marker is gone and leaves a fresh dim alone; floor (1 % -> 10 % of 100); switching to HDMI 2 restores Home's own context (LG keeps backlight per input: the first version restored into the wrong context, fixed by storing the dimension). Note: the dim is NOT visible to me; whether it looks right is for you to judge.

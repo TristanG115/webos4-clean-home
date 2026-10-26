@@ -44,6 +44,7 @@ fi
 ( bad=0; tick=0
   while is_mounted $HOME_EXE; do
     sleep 20; tick=$((tick+1))
+    [ -e "$STATE/backlight.orig" ] && sh "$D/backlight.sh" sweep >/dev/null 2>&1      # restore a stale screensaver dim
     is_mounted $HOME_EXE || break      # reverted while we slept: do not restart anything
     if api_ok; then bad=0; else api_start; sleep 1; if api_ok; then bad=0; else bad=$((bad+1)); fi; fi
     [ $bad -ge 3 ] && { log "home-on: watchdog -> LG Home"; sh "$D/home-off.sh" temp; break; }

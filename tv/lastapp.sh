@@ -36,6 +36,7 @@ while :; do
     case "$id" in ''|"$HOME_ID"|"$SET_ID"|com.webos.app.quicksettings|com.webos.app.screensaver*|com.webos.app.notification*) continue;; esac
     { grep -vx "$id" $STK 2>/dev/null; echo "$id"; } | tail -n 8 > $STK.tmp && mv $STK.tmp $STK
     printf %s "$id" > $OUT
+    [ -e "$STATE/backlight.orig" ] && sh "$D/backlight.sh" restore      # left Home while the screensaver had the backlight down
   done
   alive || break
   sleep 5                                    # the subscription ended (SAM restarted?): subscribe again

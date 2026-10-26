@@ -5,6 +5,7 @@
 # our Settings key hook and overlay go first: with LG's Home back, LG's own Settings panel is used again
 sh "$D/settings-hook.sh" stop >/dev/null 2>&1
 sh "$D/lastapp.sh" stop >/dev/null 2>&1
+sh "$D/backlight.sh" restore >/dev/null 2>&1
 sh "$D/backchain.sh" stop >/dev/null 2>&1
 sh "$D/pointer.sh" stop >/dev/null 2>&1
 sh "$D/settings-open.sh" close >/dev/null 2>&1

@@ -131,6 +131,11 @@ case "$P" in
   /api/appupdates/mode) case "$(qget v)" in auto|manual) timeout -t 15 sh "$D/appupdate.sh" mode "$(qget v)" </dev/null >/dev/null 2>&1;; esac
                 hdr "200 OK"; printf '{"mode":"%s"}' "$(timeout -t 10 sh "$D/appupdate.sh" mode </dev/null 2>/dev/null)";;
   /api/appupdates/check) m=$(timeout -t 25 sh "$D/appupdate.sh" check </dev/null 2>/dev/null | head -1 | tr -d '"'); hdr "200 OK"; printf '{"msg":"%s"}' "$m";;
+  /api/backlight) case "$(qget v)" in
+                  dim) pct=$(qget pct); timeout -t 15 sh "$D/backlight.sh" dim "$pct" </dev/null >/dev/null 2>&1;;
+                  hold) sh "$D/backlight.sh" hold </dev/null >/dev/null 2>&1;;
+                  restore) timeout -t 15 sh "$D/backlight.sh" restore </dev/null >/dev/null 2>&1;; esac
+                hdr "200 OK"; printf '{"backlight":"%s"}' "$(sh "$D/backlight.sh" status | cut -d' ' -f1)";;
   /api/backchain) case "$(qget v)" in off) touch "$STATE/backchain-off";; on) rm -f "$STATE/backchain-off";; esac
                 hdr "200 OK"; [ -e "$STATE/backchain-off" ] && echo '{"chain":"off"}' || echo '{"chain":"on"}';;
   /api/pointer) case "$(qget v)" in off|on) m=$(timeout -t 20 sh "$D/pointer.sh" "$(qget v)" </dev/null 2>/dev/null | head -1 | tr -d '"\\');; *) m="";; esac
