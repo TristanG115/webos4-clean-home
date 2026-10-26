@@ -59,3 +59,9 @@ repo and PR it into Gathin23/cleanyourtv SHOWCASE.md "Other platforms"). Ask Tri
   Back key on Home, magic-remote click), whether to turn Telnet off, and whether to publish upstream.
 - Gotchas worth knowing before touching the TV again: see the README "findings" list and the `lg-tv-debloat-state` memory (luna-send needs
   `</dev/null`; never `pkill -f`/`pgrep -f` a pattern that is in your own ssh command line; files must be root-owned and not world-writable).
+
+## Update (round 2, 2026-10-26)
+- Added: photo gallery (processed 1920x1080 crops + thumbs), Home photo background (new photo each launch, rotates), AFK screen with time/date/weather, weather by IP or ZIP,
+  phone page via QR (token-protected, LAN) for uploading/cropping/deleting photos and changing settings, a new Settings screen (launcher + LG picture/sound/power), voice/IoT/HomeKit stopped.
+- The repo is now a local git repo (1 commit). `gh` is not logged in; nothing has been pushed. Photos (`photos-trist/`, `tv/launcher/photos/`) and `tv-report/` are git-ignored and must stay private.
+- Details: README.md (design, security model, results), CHANGES.md (every change + undo).
