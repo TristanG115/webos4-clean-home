@@ -19,7 +19,5 @@ fs.writeFileSync(path.join(out, 'blocklist-domains.txt'), list.join('\n') + '\n'
 fs.writeFileSync(path.join(out, 'blocklist-hosts.txt'), list.map(n => '0.0.0.0 ' + n).join('\n') + '\n');
 fs.writeFileSync(path.join(out, 'blocklist-adguard.txt'), list.map(n => '||' + n + '^').join('\n') + '\n');
 // LG firmware update servers (what the rooted install blocks with its 'updates' item): a separate file so you choose
-fs.writeFileSync(path.join(out, 'update-servers.txt'), ['snu.lge.com', 'snu-dev.lge.com', 'su.lge.com', 'su-dev.lge.com', 'su-ssl.lge.com', 'nsu.lge.com'].join('
-') + '
-');
+fs.writeFileSync(path.join(out, 'update-servers.txt'), ['snu.lge.com', 'snu-dev.lge.com', 'su.lge.com', 'su-dev.lge.com', 'su-ssl.lge.com', 'nsu.lge.com'].join(String.fromCharCode(10)) + String.fromCharCode(10));
 console.log(list.length + ' names from ' + cat.map(c => c[0]).join(', ') + ' -> ' + out);
