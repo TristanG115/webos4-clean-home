@@ -100,7 +100,7 @@ do_iot() {
 }
 # preload: LG's preload manager keeps apps half-open in RAM. Its runtime policy is switched per app (no file is touched);
 # the original enabled/disabled flags are saved the first time and restored by undo.
-PRELOAD_OFF="com.webos.app.googleassistant com.webos.app.browser com.webos.app.tips vudu amazon pooq"
+PRELOAD_OFF="com.webos.app.googleassistant com.webos.app.browser com.webos.app.tips vudu amazon pooq com.webos.app.home"   # com.webos.app.home = LG's other (unused) Home: nothing to pre-load
 PL=com.webos.service.preloadmanager
 preload_dump() { lun luna://$PL/getPreloadPolicy '{}' | python -c "
 import sys,json
