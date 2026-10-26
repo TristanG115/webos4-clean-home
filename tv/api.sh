@@ -127,6 +127,10 @@ case "$P" in
                 id=$(timeout -t 8 sh "$D/lastapp.sh" top 2>/dev/null)
                 if ok_id "$id"; then hdr "200 OK"; LW=10000 lun luna://com.webos.applicationManager/launch "{\"id\":\"$id\",\"params\":{}}" >/dev/null; echo "{\"back\":\"$id\"}"
                 else hdr "200 OK"; echo '{"back":""}'; fi;;
+  /api/appupdates) hdr "200 OK"; timeout -t 25 sh "$D/appupdate.sh" json </dev/null 2>/dev/null || echo '{"mode":"","pending":[],"apps":[]}';;
+  /api/appupdates/mode) case "$(qget v)" in auto|manual) timeout -t 15 sh "$D/appupdate.sh" mode "$(qget v)" </dev/null >/dev/null 2>&1;; esac
+                hdr "200 OK"; printf '{"mode":"%s"}' "$(timeout -t 10 sh "$D/appupdate.sh" mode </dev/null 2>/dev/null)";;
+  /api/appupdates/check) m=$(timeout -t 25 sh "$D/appupdate.sh" check </dev/null 2>/dev/null | head -1 | tr -d '"'); hdr "200 OK"; printf '{"msg":"%s"}' "$m";;
   /api/backchain) case "$(qget v)" in off) touch "$STATE/backchain-off";; on) rm -f "$STATE/backchain-off";; esac
                 hdr "200 OK"; [ -e "$STATE/backchain-off" ] && echo '{"chain":"off"}' || echo '{"chain":"on"}';;
   /api/pointer) case "$(qget v)" in off|on) m=$(timeout -t 20 sh "$D/pointer.sh" "$(qget v)" </dev/null 2>/dev/null | head -1 | tr -d '"\\');; *) m="";; esac

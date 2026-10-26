@@ -51,5 +51,7 @@ fi
       ( sh "$D/debloat.sh" sweep >/dev/null 2>&1; ( setsid sh "$D/settings-hook.sh" start </dev/null >/dev/null 2>&1 & ); ( setsid sh "$D/lastapp.sh" start </dev/null >/dev/null 2>&1 & ); ( setsid sh "$D/pointer.sh" watch </dev/null >/dev/null 2>&1 & ); ( setsid sh "$D/backchain.sh" start </dev/null >/dev/null 2>&1 & ); rmdir /tmp/tvd-sweep.lock ) </dev/null >/dev/null 2>&1 &
     fi
     [ $((tick % 180)) = 0 ] && ( sh "$D/blocklist.sh" maybe-update >/dev/null 2>&1 ) </dev/null >/dev/null 2>&1 &
+    # app updates: ask LG to look 3 min after the launcher is up and then every 6 hours (installs them when the mode is auto, see appupdate.sh)
+    { [ $tick = 9 ] || [ $((tick % 1080)) = 0 ]; } && [ "$(sh "$D/appupdate.sh" mode 2>/dev/null)" = auto ] && ( sh "$D/appupdate.sh" check >/dev/null 2>&1 ) </dev/null >/dev/null 2>&1 &
   done ) </dev/null >/dev/null 2>&1 &
 exit 0

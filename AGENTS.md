@@ -237,7 +237,7 @@ physical-remote Back/Home key behaviour (injected keys only).
 - Local repo, branch `main`. Commit messages end with the attribution line required by the environment. Keep commits focused; update `CHANGES.md` for any TV-affecting change.
 - **Commit incrementally** (owner's standing instruction, 2026-10-26): after every finished, tested piece of work make a commit whose message is a detailed log of what was done (what changed, where, why, what was tested, what is still unverified). Do not batch a whole task into one commit and do not leave work uncommitted between pieces.
 - **Push once, at the end of the task**, after the section 12 privacy audit and after `tools/check.sh` passed. The owner pre-authorized this push for their own repo (`origin`, https://github.com/TristanG115/webos4-clean-home); do not wait to be asked again, and do not push in the middle of a task. Report what was pushed.
-- The repo is published on GitHub by the owner's request. Upstream contributions (not the owner's repo) Upstream contributions (issues/PRs to the projects in `NOTICE.md`) are drafted in `UPSTREAM-DRAFT.md` - ask first.
+- The repo is published on GitHub by the owner's request. Upstream contributions (issues/PRs to the projects in `NOTICE.md`) are drafted in `UPSTREAM-DRAFT.md` - ask first.
 
 ## 12. Pre-push privacy audit (run every time)
 

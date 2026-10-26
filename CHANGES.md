@@ -124,3 +124,12 @@ Back chain verified with injected Back key events written to the IR remote's evd
 | Pointer parked | `pointer.sh` also calls `mrcu/cursor/setPosition 1919,1079` (arrow cut off in the corner); the scroll wheel wakes the arrow where it last was. UNVERIFIED (remote asleep during tests) | `pointer.sh on` |
 
 Facts: LG's quick panel is not a process; it lives in surface-manager (QML), preloaded at boot by `/usr/lib/qt5/qml/KeyFilters/appLaunch.js`, which launches it through `systemUIManager /launch` on `Key_webOS_Settings`; a QML replacement would need a surface-manager restart (not done on purpose). `getForegroundAppInfo` does not list overlays. Load average on the dev TV is about 30 (swap), which adds about 1 s of latency to every luna call.
+
+## Round 5b (2026-10-26): app updates, system updates locked harder
+
+| What | Where / command | Undo |
+|---|---|---|
+| Apps update themselves (no "update this app?" prompt) | `appupdate.sh`: sets `option.appUpdateMode=auto` (LG's own auto-update; our old `updates` item forced `manual`), lists installed apps + waiting updates (`com.webos.appUpdateService/statusAll`), "check now" = an activity-manager activity whose callback is `appUpdateService/check` (that method answers only to activitymanager). `home-on.sh` asks 3 min after start and every 6 h; Settings -> **App updates** (toggle, check now, installed apps with versions); API `/api/appupdates[/mode|/check]` | Settings -> App updates -> off, or `sh appupdate.sh mode manual` (remembered in `state/appupdate-manual`) |
+| System (firmware) updates: fifth layer | `debloat.sh updates` now also bind-mounts a do-nothing stub over `/usr/sbin/update` (the `com.webos.service.update` program), so nothing can start it; status shows `BLOCKED (4/4)`; the API already refuses `automaticUpdate`/`appUpdateMode`/`softwareUpdate` keys; the 5-min sweep re-applies all of it | `debloat.sh undo updates` (revert.sh does it) |
+
+Verified: mode switch, check request accepted, API routes, stub mounted, `tools/check.sh` ALL CHECKS PASSED. NOT verified: that an update actually installs. On the dev TV two apps (Peacock 6.4.202, Prime Video 4.5.25) stay in `statusAll` with status `Y` and unchanged versions 90 s after a check in auto mode, with and without our hosts block, so either those are not real updates (the meaning of `Y` is unknown) or the store does not deliver to this TV. Facts: all 13 user apps carry `checkUpdateOnLaunch:true` (the source of the prompt); `appUpdateService/check` needs `$activity.activityId`; `luna-send -a` cannot fake the caller id.

@@ -136,26 +136,29 @@ do_epg() {
     status) do_upstart iepg; do_upstart broadcast-conf-downloader;;
   esac
 }
-# updates: LG firmware/app updates must never run (an update can remove root and bring LG's software back).
-# Four layers: LG's own switches, the update servers in the hosts file (Homebrew blocks four of them already; we add the rest),
-# the `update` service itself, and the sweep re-checks all of it. Locked ON: there is no way to turn it off from the UI.
+# updates: LG SYSTEM (firmware) updates must never run (an update can remove root and bring LG's software back).
+# Five layers: LG's own switch (support.automaticUpdate=off), the update servers in the hosts file (Homebrew blocks four of them already; we add the rest),
+# the Upstart job `update` stopped, the program /usr/sbin/update replaced by a do-nothing stub (so nothing can start it again), and the sweep re-checks all of it.
+# Locked ON: there is no way to turn it off from the UI, and the API refuses the LG keys. APP updates are the opposite and wanted: see appupdate.sh.
 UPD_HOSTS="snu.lge.com snu-dev.lge.com su.lge.com su-dev.lge.com su-ssl.lge.com nsu.lge.com"
 UPD_MARK="# tvd-update"
 upd_hosts_present() { grep -q "$UPD_MARK" /etc/hosts; }
 upd_hosts_apply() { upd_hosts_present && return 0; { echo "127.0.0.1 $UPD_HOSTS $UPD_MARK"; echo "::1 $UPD_HOSTS $UPD_MARK"; } >> /etc/hosts; }
-upd_settings_ok() { lun luna://com.webos.settingsservice/getSystemSettings '{"category":"support","keys":["automaticUpdate"]}' | grep -q '"automaticUpdate": *"off"' &&
-                    lun luna://com.webos.settingsservice/getSystemSettings '{"category":"option","keys":["appUpdateMode"]}' | grep -q '"appUpdateMode": *"manual"'; }
-upd_settings_apply() { upd_settings_ok || { LGSET '{"category":"support","settings":{"automaticUpdate":"off"}}'; LGSET '{"category":"option","settings":{"appUpdateMode":"manual"}}'; }; }
+upd_settings_ok() { lun luna://com.webos.settingsservice/getSystemSettings '{"category":"support","keys":["automaticUpdate"]}' | grep -q '"automaticUpdate": *"off"'; }
+upd_settings_apply() { upd_settings_ok || LGSET '{"category":"support","settings":{"automaticUpdate":"off"}}'; sh "$D/appupdate.sh" apply; }      # app updates: auto unless the owner chose manual
+upd_stub_ok() { is_mounted /usr/sbin/update; }
 do_updates() {
   case $ACTION in
     apply|sweep) upd_settings_apply; upd_hosts_apply
            if svc_running update; then touch "$STATE/stopped-update"; initctl stop update >/dev/null 2>&1; fi
-           [ $ACTION = apply ] && echo "updates: blocked (settings, hosts, update service)";;
+           upd_stub_ok || stub_bin apply update >/dev/null
+           [ $ACTION = apply ] && echo "updates: blocked (settings, hosts, update service, program stub)";;
     undo)  # only the revert path calls this; the Homebrew block lines stay either way
            grep -v "$UPD_MARK" /etc/hosts > /tmp/hosts.new && cat /tmp/hosts.new > /etc/hosts; rm -f /tmp/hosts.new
+           stub_bin undo update >/dev/null
            if [ -e "$STATE/stopped-update" ] || ! svc_running update; then initctl start update >/dev/null 2>&1; rm -f "$STATE/stopped-update"; fi
            echo "updates: our extra blocks removed (automatic updates stay off in LG's settings; Homebrew's own server block stays)";;
-    status) n=0; upd_hosts_present && n=$((n+1)); svc_running update || n=$((n+1)); upd_settings_ok && n=$((n+1)); [ $n = 3 ] && echo "updates: BLOCKED (3/3)" || echo "updates: partly blocked ($n/3)";;
+    status) n=0; upd_hosts_present && n=$((n+1)); svc_running update || n=$((n+1)); upd_settings_ok && n=$((n+1)); upd_stub_ok && n=$((n+1)); [ $n = 4 ] && echo "updates: BLOCKED (4/4)" || echo "updates: partly blocked ($n/4)";;
   esac
 }
 

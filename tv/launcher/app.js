@@ -433,6 +433,7 @@ var settingsOn = false, cats = [], catIdx = 0, sArea = 'cats', sRows = [], sR = 
 var ICON = {
   home: '<svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg>',
   bolt: '<svg viewBox="0 0 24 24"><path d="M13 2.5L5.5 13.5H11l-1 8 8-11.5h-5.5z"/></svg>',
+  update: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.6-5.9M20 4v5h-5"/><path d="M12 8v5l3 2"/></svg>',
   cloud: '<svg viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.5 1.5A3.5 3.5 0 0 1 17 18z"/></svg>',
   image: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-8 8"/></svg>',
   pic: '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9" cy="7" r="2" fill="#0b0e14"/><circle cx="15" cy="12" r="2" fill="#0b0e14"/><circle cx="8" cy="17" r="2" fill="#0b0e14"/></svg>',
@@ -635,6 +636,17 @@ cats = [
     });
     if (!list.length) out.push(inf('Services', 'unavailable'));
     return out; }},
+  {id: 'appupd', name: 'App updates', icon: 'update', title: 'App updates', desc: 'The TV updates your apps by itself, so LG never asks “update this app?” before opening one. TV system (firmware) updates are blocked for good.', info: '/api/appupdates', build: function(){
+    var self = this, j = this.data || {}, apps = j.apps || [], pend = (j.pending || []).length;
+    var rows = [
+    tgl('Update apps automatically', 'On: the TV downloads and installs app updates in the background. Off: LG asks before it opens an app that has an update.', function(){ return (self.data && self.data.mode) !== 'manual'; }, function(b){ self.data = self.data || {}; self.data.mode = b ? 'auto' : 'manual'; api('/api/appupdates/mode?v=' + (b ? 'auto' : 'manual'), function(){ toast(b ? 'Apps now update automatically' : 'LG will ask before updating apps'); }); }),
+    inf('Updates waiting', pend ? pend + (pend === 1 ? ' app' : ' apps') + ' (installed by the TV when it checks)' : 'none'),
+    inf('Last check', function(){ var a = j.lastCheckAgoSec; return a === null || a === undefined ? 'since the last restart: not yet' : a < 90 ? 'just now' : a < 5400 ? Math.round(a / 60) + ' min ago' : Math.round(a / 3600) + ' h ago'; }, 'The TV checks 3 minutes after it starts and then every 6 hours'),
+    act('Check for app updates now', 'Asks the TV to look right away', function(){ api('/api/appupdates/check', function(err, r){ toast((r && r.msg) || 'Could not reach the TV'); setTimeout(function(){ if (settingsOn && cats[catIdx].id === 'appupd') renderCat(true); }, 10000); }, 30000); }),
+    inf('TV system updates', 'Blocked', 'Firmware updates are switched off and re-checked every 5 minutes. They cannot be turned on from here.'),
+    head('Installed apps (' + apps.length + ')')];
+    apps.forEach(function(a){ rows.push(inf(a.title, a.version + (a.pending ? '    ·  update waiting' : ''))); });
+    return rows; }},
   {id: 'about', name: 'About & updates', icon: 'info', title: 'About & updates', desc: '', info: '/api/sysinfo', lg: [['support', ['automaticUpdate']], ['option', ['appUpdateMode']]], build: function(){ var j = this.data || {}, lg = j.lg || {}, m = j.mem || {}; return [
     inf('Model', function(){ return lg.modelName || '–'; }), inf('Firmware', function(){ return lg.firmwareVersion || '–'; }), inf('webOS SDK', function(){ return lg.sdkVersion || '–'; }),
     inf('Memory free', function(){ return (m.availMB || 0) + ' of ' + (m.totalMB || 0) + ' MB'; }), inf('Swap in use', function(){ return (m.swapUsedMB || 0) + ' MB'; }),
