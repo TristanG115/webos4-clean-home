@@ -26,7 +26,7 @@ Credit: the idea comes from Gathin23/cleanyourtv (Android) and lasharor/cleanyou
 
 **Never break the TV, and always keep a way back in.** Every change must be reversible, tested, and recorded in `CHANGES.md`. Never touch firmware, bootloader, raw
 partitions, or the read-only root FS (it is squashfs; it cannot be remounted anyway). Never disable the Homebrew Channel, SSH, networking, inputs/HDMI, or LG's update-blocking.
-Ask the owner before anything outward-facing (pushing, opening issues/PRs, posting). Owner defaults: AirPlay/casting kept, voice off, ThinQ/IoT/HomeKit off,
+Ask the owner before anything outward-facing (opening issues/PRs, posting). Pushing the owner's own repo is pre-authorized at the end of a task (section 11). Owner defaults: AirPlay/casting kept, voice off, ThinQ/IoT/HomeKit off,
 dock = Netflix/YouTube/Hulu/Disney+, weather in Fahrenheit.
 
 ## 3. Privacy rules (important)
@@ -235,7 +235,9 @@ physical-remote Back/Home key behaviour (injected keys only).
 ## 11. Git, publishing, releases
 
 - Local repo, branch `main`. Commit messages end with the attribution line required by the environment. Keep commits focused; update `CHANGES.md` for any TV-affecting change.
-- The repo is published on GitHub by the owner's request; pushes need the owner's OK each time unless they said otherwise. Upstream contributions (issues/PRs to the projects in `NOTICE.md`) are drafted in `UPSTREAM-DRAFT.md` - ask first.
+- **Commit incrementally** (owner's standing instruction, 2026-10-26): after every finished, tested piece of work make a commit whose message is a detailed log of what was done (what changed, where, why, what was tested, what is still unverified). Do not batch a whole task into one commit and do not leave work uncommitted between pieces.
+- **Push once, at the end of the task**, after the section 12 privacy audit and after `tools/check.sh` passed. The owner pre-authorized this push for their own repo (`origin`, https://github.com/TristanG115/webos4-clean-home); do not wait to be asked again, and do not push in the middle of a task. Report what was pushed.
+- The repo is published on GitHub by the owner's request. Upstream contributions (not the owner's repo) Upstream contributions (issues/PRs to the projects in `NOTICE.md`) are drafted in `UPSTREAM-DRAFT.md` - ask first.
 
 ## 12. Pre-push privacy audit (run every time)
 
