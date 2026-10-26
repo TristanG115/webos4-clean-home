@@ -1,0 +1,30 @@
+=== A. launcher fails to start -> automatic fallback to LG Home
+no launcher files
+home-on returned after 0 s; state: LG Home (no mount)
+LG native Home process running again (native entry in SAM list): 1
+launcher page restored on disk
+admanager stub mounted while LG Home active: 0 (expect 0: LG Home needs it)
+=== B. crash-loop guard
+PASS: boot.sh created DISABLE after 4th unfinished boot
+state after: LG Home (no mount); hosts-block lines: 2
+=== restore full state
+launcher active
+state: launcher mounted
+=== C. API watchdog self-heal
+API killed (as intended)
+PASS: API back after ~20 s
+final: launcher mounted; hosts: BLOCKING;remotelogger: STOPPED;nudge: STOPPED;contentminer: STOPPED;admanager: STUBBED;lgsettings: APPLIED;
+launcher failed; restoring LG Home
+LG Home restored
+home-on returned after 38 s
+PASS: stand-in unmounted (LG Home restored)
+admanager stub mounted: 0 (expect 0 while LG Home is active)
+SAM running list (native fullhome = LG Home):
+"id":"com.webos.app.fullhome","webprocessid":"","defaultWindowType":"home","appType":"native","processid":"4054"
+523.94 debloat.sh[3994]: undo admanager
+524.01 com.webos.app.fullhome[3831]: standin: registerApp ended
+524.05 com.webos.app.fullhome[3831]: standin: registerNativeApp refused: {"errorCode":1,"returnValue":false,"errorText":"trying to register 
+527.33 home-off.sh[3992]: home-off (temp): LG Home restored
+--- restoring launcher
+launcher active
+launcher mounted again

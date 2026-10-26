@@ -1,0 +1,6 @@
+#!/bin/sh
+# tv-debloat boot hook (Homebrew init.d). Delete or rename THIS ONE FILE and reboot to undo everything at boot.
+# Also: touch /media/developer/tv-debloat/DISABLE turns it off without touching init.d.
+[ -f /media/developer/tv-debloat/boot.sh ] || exit 0
+( setsid sh /media/developer/tv-debloat/boot.sh </dev/null >/dev/null 2>&1 200>&- & )
+exit 0

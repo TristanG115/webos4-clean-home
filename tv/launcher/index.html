@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  Clean Home launcher for LG webOS 4.x (Chromium 53). Written for the old engine: ES5 style, no async/await, no flex gap, no CSS grid.
+  Logic: app.js. QR code: qr.js (qrcode-generator, MIT). Talks to the TV through the local API (tv/api.sh on 127.0.0.1:8765).
+-->
+<style>
+:root{--bg:#0a0c11;--card:#1a1e28;--text:#f4f6fa;--dim:#9aa3b5}
+*{box-sizing:border-box;-webkit-user-select:none;margin:0;padding:0}
+html{font-size:calc(100vw / 120)}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:"LG Smart UI","Segoe UI",Helvetica,Arial,sans-serif;cursor:default}
+.bgl{position:fixed;left:0;top:0;width:100%;height:100%;opacity:0;transition:opacity 2.4s ease;will-change:opacity}
+.bgl.show{opacity:1}
+.bgl img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover}
+#scrim2{position:fixed;left:0;top:0;width:100%;height:100%;opacity:0;transition:opacity 1.5s;pointer-events:none;
+  background:linear-gradient(90deg,rgba(8,10,15,.80) 0%,rgba(8,10,15,.45) 55%,rgba(8,10,15,.30) 100%),linear-gradient(0deg,rgba(8,10,15,.72) 0%,rgba(8,10,15,0) 50%),linear-gradient(180deg,rgba(8,10,15,.55) 0%,rgba(8,10,15,0) 28%)}
+body.hasbg #scrim2{opacity:1}
+#glowA,#glowB{position:fixed;left:-10%;top:-30%;width:120%;height:90%;opacity:0;pointer-events:none;transition:opacity .9s ease;will-change:opacity}
+#glowA.on,#glowB.on{opacity:.5}
+body.hasbg #glowA.on,body.hasbg #glowB.on{opacity:.28}
+body.hasbg .nm,body.hasbg #date,body.hasbg #wdesc,body.hasbg .rowlabel{color:#d5dbe8;text-shadow:0 .1rem .5rem rgba(0,0,0,.8)}
+body.hasbg #time,body.hasbg #wtemp{text-shadow:0 .1rem .8rem rgba(0,0,0,.6)}
+#view{position:fixed;left:0;top:0;width:100%;height:100%;will-change:transform;transition:transform .35s ease}
+body.hasbg .hbtn{background:rgba(8,10,15,.55);color:#cfd6e4}
+body.hasbg .hbtn.foc{color:#fff}
+#header{height:11.6rem;padding:2.6rem 6rem 0 6rem;display:flex;align-items:flex-start;justify-content:space-between}
+#clock{display:flex;flex-direction:column}
+#time{font-size:4.6rem;font-weight:300;letter-spacing:-.05rem;line-height:1}
+#time small{font-size:1.7rem;margin-left:.6rem;color:var(--dim);font-weight:400;letter-spacing:0}
+#date{font-size:1.7rem;color:var(--dim);margin-top:.7rem}
+#right{display:flex;align-items:center}
+#weather{display:flex;align-items:center;margin-right:3rem;opacity:0;transition:opacity .6s}
+#weather.on{opacity:1}
+#weather svg{width:3.8rem;height:3.8rem;margin-right:1.1rem}
+#wtemp{font-size:2.8rem;font-weight:300;line-height:1}
+#wtemp small{font-size:1.3rem;color:var(--dim);margin-left:.8rem;font-weight:400}
+#wdesc{font-size:1.25rem;color:var(--dim);margin-top:.4rem;white-space:nowrap}
+.hbtn{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;width:6.4rem;height:5.6rem;margin-left:1.2rem;border-radius:1.4rem;background:rgba(255,255,255,.08);color:var(--dim);font-size:1.05rem;transition:transform .18s ease,color .15s;will-change:transform}
+.hbtn svg{width:2.4rem;height:2.4rem;margin-bottom:.3rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ring{position:absolute;left:-.35rem;top:-.35rem;right:-.35rem;bottom:-.35rem;border:.28rem solid #fff;border-radius:inherit;opacity:0;transition:opacity .15s;pointer-events:none}
+.hbtn.foc{color:#fff;z-index:2;transform:scale(1.12)}
+.hbtn.foc .ring,.tile.foc .ring{opacity:.95}
+.row{padding:0 6rem}
+.rowlabel{font-size:1.3rem;letter-spacing:.18rem;text-transform:uppercase;color:var(--dim);margin:0 0 1.6rem .4rem}
+#dock{display:flex;margin-bottom:3.6rem;padding-top:.6rem}
+.tile{position:relative;display:flex;flex-direction:column;align-items:center}
+.ic{position:relative;transition:transform .18s ease;will-change:transform}
+.tile img{display:block;width:100%;height:100%;background:var(--card);object-fit:contain;border-radius:inherit}
+.tile.foc .ic{transform:scale(1.12)}
+.tile.foc .nm{transform:translateY(.9rem);color:#fff}
+.tile .nm{margin-top:1.1rem;font-size:1.35rem;color:var(--dim);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .15s,transform .18s}
+.big{width:16rem;margin-right:2.6rem}
+.big .ic{width:15rem;height:15rem;border-radius:3.2rem}
+.big .ring{border-radius:3.5rem}
+.sm{width:11rem;margin:0 1.4rem 2.4rem 0}
+.sm .ic{width:9.6rem;height:9.6rem;border-radius:2.2rem}
+.sm .ring{border-radius:2.5rem}
+#grid{display:flex;flex-wrap:wrap}
+/* screensaver / AFK */
+#saver{position:fixed;left:0;top:0;width:100%;height:100%;background:#000;opacity:0;visibility:hidden;transition:opacity 1.2s ease,visibility 0s 1.2s;z-index:50}
+#saver.on{opacity:1;visibility:visible;transition:opacity 1.2s ease}
+#saver img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity 1.6s ease}
+#saver img.show{opacity:1}
+#saver.nophoto{background:radial-gradient(ellipse at 30% 80%,#16213a 0%,#06080d 70%)}
+#scrimS{position:absolute;left:0;bottom:0;width:100%;height:24rem;z-index:2;background:linear-gradient(to top,rgba(0,0,0,.65),rgba(0,0,0,0))}
+#sinfo{position:absolute;left:4.5rem;bottom:3.6rem;z-index:3;text-shadow:0 .1rem .7rem rgba(0,0,0,.75);transition:left 2s ease,bottom 2s ease}
+#sinfo .t{font-size:7.2rem;font-weight:300;line-height:1;letter-spacing:-.15rem}
+#sinfo .t small{font-size:2.4rem;margin-left:.8rem;color:#ddd;letter-spacing:0;font-weight:400}
+#sinfo .d{font-size:2.2rem;margin-top:.8rem;color:#e6e9f0}
+#sinfo .w{display:none;align-items:center;margin-top:1.4rem;font-size:2rem;color:#e6e9f0}
+#sinfo .w.on{display:flex}
+#sinfo .w svg{width:4.2rem;height:4.2rem;margin-right:1.2rem}
+#sinfo .w .p{color:#b9c0d0;font-size:1.5rem;margin-left:1.4rem}
+/* modal list (Inputs / Network / choices) */
+#panel{position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(6,8,12,.86);display:none;z-index:60;align-items:center;justify-content:center}
+#panel.on{display:flex}
+#pbox{min-width:62rem;padding:3.2rem 3.6rem;background:#161a23;border-radius:2.4rem}
+#ptitle{font-size:2.4rem;margin-bottom:2rem}
+.pitem{position:relative;display:flex;justify-content:space-between;padding:1.3rem 1.6rem;margin-bottom:.6rem;border-radius:1.2rem;background:rgba(255,255,255,.06);font-size:1.8rem;color:#cfd5e2}
+.pitem.foc{background:#fff;color:#0a0c11}
+.pitem .v{opacity:.65}
+#phint{margin-top:1.4rem;font-size:1.2rem;color:var(--dim)}
+#toast{position:fixed;left:50%;bottom:3rem;transform:translateX(-50%);padding:1rem 2rem;border-radius:1rem;background:rgba(255,255,255,.16);font-size:1.4rem;opacity:0;transition:opacity .3s;z-index:90;pointer-events:none;max-width:90%;text-align:center}
+#toast.on{opacity:1}
+/* QR + keypad modals */
+#qrm,#keym{position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(6,8,12,.9);display:none;z-index:70;align-items:center;justify-content:center}
+#qrm.on,#keym.on{display:flex}
+#qrbox,#keybox{background:#161a23;border-radius:2.4rem;padding:3.2rem 4rem;text-align:center}
+#qrbox h2,#keybox h2{font-size:2.4rem;font-weight:500;margin-bottom:.8rem}
+#qrbox p{font-size:1.4rem;color:var(--dim);margin-top:1rem;max-width:44rem}
+#qrcv{background:#fff;padding:1.4rem;border-radius:1.2rem;margin-top:1.6rem}
+#qrurl{font-size:1.5rem;color:#cfd5e2;margin-top:1.2rem;word-break:break-all}
+#kdisp{font-size:4.4rem;letter-spacing:.5rem;margin:1.4rem 0 2rem;min-height:5.4rem;color:#fff}
+#kpad{display:flex;flex-wrap:wrap;width:27rem;margin:0 auto}
+.kk{width:8rem;height:6.4rem;margin:.5rem;border-radius:1.2rem;background:rgba(255,255,255,.08);font-size:2.4rem;display:flex;align-items:center;justify-content:center}
+.kk.foc{background:#fff;color:#0a0c11}
+/* Settings */
+#settings{position:fixed;left:0;top:0;width:100%;height:100%;background:#0b0e14;z-index:30;display:none}
+#settings.on{display:block}
+#sethead{position:absolute;left:0;top:0;width:100%;height:9rem;padding:3rem 6rem 0;display:flex;justify-content:space-between;align-items:baseline}
+#sethead h1{font-size:3.4rem;font-weight:300}
+#sethead span{font-size:1.3rem;color:var(--dim)}
+#setcats{position:absolute;left:6rem;top:9.5rem;width:30rem}
+.scat{position:relative;padding:1.3rem 1.8rem;margin-bottom:.5rem;border-radius:1.2rem;font-size:1.7rem;color:#aab2c3;display:flex;align-items:center}
+.scat svg{width:2.2rem;height:2.2rem;margin-right:1.2rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.scat.cur{background:rgba(255,255,255,.08);color:#fff}
+.scat.foc{background:#fff;color:#0a0c11}
+#setpane{position:absolute;left:40rem;top:9.5rem;right:6rem;bottom:3rem;overflow:hidden}
+#setinner{will-change:transform;transition:transform .25s ease}
+#settitle{font-size:2.4rem;margin:0 0 .4rem .4rem}
+#setdesc{font-size:1.3rem;color:var(--dim);margin:0 0 1.6rem .4rem}
+.srow{position:relative;display:flex;align-items:center;justify-content:space-between;min-height:5.6rem;padding:1rem 1.8rem;margin-bottom:.5rem;border-radius:1.2rem;background:rgba(255,255,255,.05);font-size:1.7rem}
+.srow .lab{max-width:60%}
+.srow .lab small{display:block;font-size:1.15rem;color:var(--dim);margin-top:.3rem}
+.srow .val{color:#cfd5e2;display:flex;align-items:center;font-size:1.6rem}
+.srow.foc{background:#fff;color:#0a0c11}
+.srow.foc .val,.srow.foc .lab small{color:#2b3140}
+.srow.act .val{opacity:.7}
+.tg{width:5.2rem;height:2.8rem;border-radius:1.4rem;background:rgba(255,255,255,.22);position:relative;transition:background .15s}
+.tg:after{content:"";position:absolute;left:.3rem;top:.3rem;width:2.2rem;height:2.2rem;border-radius:50%;background:#fff;transition:transform .15s}
+.tg.on{background:#2ecc71}
+.tg.on:after{transform:translateX(2.4rem)}
+.srow.foc .tg:not(.on){background:rgba(0,0,0,.28)}
+.srow.foc .tg:after{box-shadow:0 0 0 .1rem rgba(0,0,0,.25)}
+.sl{width:22rem;height:.8rem;border-radius:.4rem;background:rgba(255,255,255,.2);position:relative;margin-right:1.4rem}
+.sl i{position:absolute;left:0;top:0;height:100%;border-radius:.4rem;background:#fff}
+.srow.foc .sl{background:rgba(0,0,0,.2)}.srow.foc .sl i{background:#0a0c11}
+.ch b{font-weight:500}
+.gthumbs{display:flex;flex-wrap:wrap;margin-top:.6rem}
+.gt{position:relative;width:17.2rem;height:9.7rem;margin:0 1.2rem 1.4rem 0;border-radius:1rem;overflow:hidden;background:#1a1e28}
+.gt img{width:100%;height:100%;object-fit:cover;display:block}
+.gt.foc{outline:.3rem solid #fff;transform:scale(1.04);z-index:2}
+</style>
+</head>
+<body>
+<div id="bgA" class="bgl"><img alt=""></div><div id="bgB" class="bgl"><img alt=""></div><div id="scrim2"></div>
+<div id="glowA"></div><div id="glowB"></div>
+<div id="view">
+  <div id="header">
+    <div id="clock"><div id="time"></div><div id="date"></div></div>
+    <div id="right">
+      <div id="weather"><span id="wicon"></span><div><div id="wtemp"></div><div id="wdesc"></div></div></div>
+      <div class="hbtn" id="b-inputs"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span>Inputs</span><div class="ring"></div></div>
+      <div class="hbtn" id="b-net"><svg viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/></svg><span id="netlabel">Network</span><div class="ring"></div></div>
+      <div class="hbtn" id="b-settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Settings</span><div class="ring"></div></div>
+    </div>
+  </div>
+  <div class="row"><div class="rowlabel">Favorites</div><div id="dock"></div></div>
+  <div class="row"><div class="rowlabel">Apps</div><div id="grid"></div></div>
+</div>
+<div id="saver"><img id="sa" alt=""><img id="sb" alt=""><div id="scrimS"></div>
+  <div id="sinfo"><div class="t"></div><div class="d"></div><div class="w"></div></div></div>
+<div id="panel"><div id="pbox"><div id="ptitle"></div><div id="plist"></div><div id="phint">OK to select &nbsp;&middot;&nbsp; Back to close</div></div></div>
+<div id="settings">
+  <div id="sethead"><h1>Settings</h1><span>&#9664; &#9654; change &nbsp;&middot;&nbsp; OK select &nbsp;&middot;&nbsp; Back</span></div>
+  <div id="setcats"></div>
+  <div id="setpane"><div id="setinner"><div id="settitle"></div><div id="setdesc"></div><div id="setrows"></div></div></div>
+</div>
+<div id="qrm"><div id="qrbox"><h2>Add photos from your phone</h2><div>Scan with your phone camera (same Wi-Fi)</div><canvas id="qrcv" width="280" height="280"></canvas><div id="qrurl"></div><p>Pick photos on your phone; they are cropped to fit the TV automatically and appear in the gallery. Back to close.</p></div></div>
+<div id="keym"><div id="keybox"><h2 id="ktitle"></h2><div id="kdisp"></div><div id="kpad"></div></div></div>
+<div id="toast"></div>
+<!--MOCK-->
+<script src="qr.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

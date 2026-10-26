@@ -1,0 +1,2 @@
+{ "name": "tv-work-tools", "private": true, "version": "1.0.0", "description": "PC-side tools (photo prep, QR library for the launcher)",
+  "dependencies": { "sharp": "^0.33.5", "qrcode-generator": "^1.4.4" } }

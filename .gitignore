@@ -1,0 +1,22 @@
+# PRIVATE: personal photos (originals and resized TV copies) - never commit
+photos-trist/
+photos*/
+tv/launcher/photos/*
+!tv/launcher/photos/.gitkeep
+*.jpg
+*.jpeg
+*.JPG
+*.JPEG
+*.png
+!tools/**/*.png
+# raw device reports contain serials, MAC/IDs, ad IDs, SSIDs
+tv-report/
+tv-report.txt
+runner/
+# local scratch / outputs
+scratch/
+shots/
+ref/
+*.tmp
+node_modules/
+package-lock.json

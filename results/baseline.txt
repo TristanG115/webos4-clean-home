@@ -1,0 +1,32 @@
+baseline.uptime_s=2334.36
+baseline.loadavg1=37.30
+baseline.procs=266
+baseline.mem_free_mb=30
+baseline.mem_avail_mb=278
+baseline.cache_mb=190
+baseline.swap_used_mb=428
+baseline.vm_si_kb_s=33
+baseline.vm_so_kb_s=0
+baseline.vm_irq_s=16303
+baseline.vm_ctx_s=29894
+baseline.cpu_us=7.2
+baseline.cpu_sy=7.1
+baseline.cpu_idle=85.7
+baseline.cpu_wa=0.0
+baseline.luna_rtt_ms=51
+baseline.fork300_ms=3100
+baseline.top1=com.webos.app.f:130MB
+baseline.top2=starfish-media-:49MB
+baseline.top3=com.webos.app.i:39MB
+baseline.top4=scd-service:31MB
+baseline.top5=surface-manager:31MB
+baseline.top6=starfish-media-:11MB
+baseline.launch_visible_ms_com.palm.app.settings= 1741 1036 1465
+tail: can't open '/var/log/messages': No such file or directory
+tail: no files
+baseline.launch_visible_ms_youtube.leanback.v4= 2482 1803 NA
+baseline.launch_visible_ms_netflix= 2452 2547 2348
+baseline.launch_visible_ms_home= 7584 7452 7484
+baseline.admanager_requests_since_boot=14
+baseline.admanager_impressions_since_boot=31
+baseline.end_swap_used_mb=442

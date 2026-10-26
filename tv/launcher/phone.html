@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TV photos</title>
+<style>
+:root{color-scheme:dark;--bg:#0b0e14;--card:#161a23;--line:#262c39;--text:#f2f4f8;--dim:#8f98aa;--acc:#4da3ff}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;padding:env(safe-area-inset-top) 16px 40px}
+h1{font-size:26px;font-weight:600;margin:22px 0 4px}
+.sub{color:var(--dim);margin:0 0 18px;font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px}
+.card h2{margin:0 0 10px;font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:600}
+button,.btn{appearance:none;border:0;border-radius:12px;background:var(--acc);color:#04111f;font:600 16px system-ui;padding:14px 18px;width:100%}
+button.sec{background:#232a38;color:var(--text)}
+button:disabled{opacity:.5}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.grid .ph{position:relative;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#10141c}
+.grid img{width:100%;height:100%;object-fit:cover;display:block}
+.grid .x{position:absolute;right:4px;top:4px;width:28px;height:28px;border-radius:14px;background:rgba(0,0,0,.65);color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;padding:0}
+.row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row label{flex:1;padding-right:12px}.row small{display:block;color:var(--dim)}
+select,input[type=text],input[type=tel]{background:#10141c;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:16px system-ui;min-width:110px}
+.sw{position:relative;width:52px;height:30px;flex:none}.sw input{opacity:0;width:100%;height:100%;position:absolute;margin:0}
+.sw i{position:absolute;inset:0;border-radius:15px;background:#303849;transition:.15s}.sw i:after{content:"";position:absolute;left:3px;top:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.15s}
+.sw input:checked+i{background:#2ecc71}.sw input:checked+i:after{transform:translateX(22px)}
+.prog{margin-top:12px;font-size:14px;color:var(--dim)}
+.bar{height:6px;border-radius:3px;background:#232a38;margin-top:6px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
+.err{color:#ff7b7b}
+canvas{display:none}
+.crop{margin-top:12px;display:none}
+.crop img{width:100%;border-radius:10px}
+.crop input[type=range]{width:100%}
+</style>
+</head>
+<body>
+<h1>TV photos</h1>
+<p class="sub">Photos you add are cropped to fit the TV automatically and shown on Home and the screensaver.</p>
+
+<div class="card">
+  <h2>Add photos</h2>
+  <button id="pick">Choose photos</button>
+  <input id="file" type="file" accept="image/*" multiple hidden>
+  <div class="prog" id="prog"></div>
+  <div class="crop" id="crop"><img id="cropimg" alt=""><div class="sub" id="cropnote"></div><input id="cropy" type="range" min="0" max="100" value="50"><button class="sec" id="cropok" style="margin-top:8px">Use this crop</button></div>
+</div>
+
+<div class="card">
+  <h2>Gallery <span id="count"></span></h2>
+  <div class="grid" id="grid"></div>
+  <p class="sub" id="empty" style="display:none">No photos yet.</p>
+</div>
+
+<div class="card">
+  <h2>Settings</h2>
+  <div class="row"><label>Photo background on Home</label><span class="sw"><input type="checkbox" id="s_bg"><i></i></span></div>
+  <div class="row"><label>Change background every</label><select id="s_bgm"><option value="5">5 min</option><option value="10">10 min</option><option value="20">20 min</option><option value="30">30 min</option><option value="60">1 hour</option></select></div>
+  <div class="row"><label>Screensaver when idle</label><span class="sw"><input type="checkbox" id="s_sv"><i></i></span></div>
+  <div class="row"><label>Start after</label><select id="s_idle"><option value="1">1 min</option><option value="2">2 min</option><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="30">30 min</option></select></div>
+  <div class="row"><label>Show gallery photos in screensaver<small>Off = dark screen with clock</small></label><span class="sw"><input type="checkbox" id="s_svp"><i></i></span></div>
+  <div class="row"><label>Show weather in screensaver</label><span class="sw"><input type="checkbox" id="s_svw"><i></i></span></div>
+  <div class="row"><label>24-hour clock</label><span class="sw"><input type="checkbox" id="s_24"><i></i></span></div>
+  <div class="row"><label>Weather location<small id="wplace"></small></label><select id="s_wm"><option value="auto">Automatic</option><option value="zip">ZIP code</option></select></div>
+  <div class="row" id="zrow"><label>ZIP code</label><input id="s_zip" type="tel" inputmode="numeric" maxlength="5" placeholder="47906"></div>
+  <div class="row"><label>Temperature</label><select id="s_unit"><option value="F">&deg;F</option><option value="C">&deg;C</option></select></div>
+</div>
+<p class="sub" id="status"></p>
+
+<canvas id="cv"></canvas>
+<script>
+(function(){
+'use strict';
+var T = new URLSearchParams(location.search).get('t') || '';
+function $(i){ return document.getElementById(i); }
+function qs(p){ return p + (p.indexOf('?') < 0 ? '?' : '&') + 't=' + encodeURIComponent(T); }
+function getJSON(p){ return fetch(qs(p)).then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); }); }
+function post(p, body){ return fetch(qs(p), {method: 'POST', body: body}).then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); }); }
+function status(m, bad){ var s = $('status'); s.textContent = m; s.className = 'sub' + (bad ? ' err' : ''); }
+
+/* ---------- gallery ---------- */
+function loadGallery(){
+  getJSON('/m/photos').then(function(list){
+    $('count').textContent = '(' + list.length + ')'; $('empty').style.display = list.length ? 'none' : 'block';
+    var g = $('grid'); g.innerHTML = '';
+    list.forEach(function(n){
+      var d = document.createElement('div'); d.className = 'ph';
+      d.innerHTML = '<img loading="lazy" alt=""><button class="x" aria-label="Delete">✕</button>';
+      d.firstChild.src = qs('/photos/thumbs/' + encodeURIComponent(n));
+      d.lastChild.onclick = function(){ if (confirm('Remove this photo from the TV?')) post('/m/delete?name=' + encodeURIComponent(n), '').then(loadGallery).catch(function(){ status('Could not delete', true); }); };
+      g.appendChild(d);
+    });
+  }).catch(function(){ status('This link is not valid any more. Scan the QR code on the TV again.', true); });
+}
+
+/* ---------- upload with automatic 16:9 crop ---------- */
+var W = 1920, H = 1080;
+function loadImage(file){
+  return new Promise(function(res, rej){
+    var url = URL.createObjectURL(file), im = new Image();
+    im.onload = function(){ res({im: im, url: url}); }; im.onerror = function(){ rej(new Error('cannot read image')); };
+    im.src = url;     // modern browsers apply EXIF orientation when drawing
+  });
+}
+// pick the most "interesting" 16:9 window along the long axis: edge energy + saturation, with a mild bias to the centre/upper third
+function autoCropPos(im, nw, nh){
+  var sw = 96, sh = Math.max(8, Math.round(96 * nh / nw)), c = document.createElement('canvas'); c.width = sw; c.height = sh;
+  var x = c.getContext('2d'); x.drawImage(im, 0, 0, sw, sh);
+  var d = x.getImageData(0, 0, sw, sh).data, e = new Float32Array(sh);
+  for (var y = 1; y < sh - 1; y++) { var s = 0; for (var i = 1; i < sw - 1; i++) { var p = (y * sw + i) * 4, q = (y * sw + i + 1) * 4, r = ((y + 1) * sw + i) * 4;
+      var g0 = d[p] * .3 + d[p + 1] * .59 + d[p + 2] * .11, g1 = d[q] * .3 + d[q + 1] * .59 + d[q + 2] * .11, g2 = d[r] * .3 + d[r + 1] * .59 + d[r + 2] * .11;
+      var mx = Math.max(d[p], d[p + 1], d[p + 2]), mn = Math.min(d[p], d[p + 1], d[p + 2]);
+      s += Math.abs(g0 - g1) + Math.abs(g0 - g2) + (mx - mn) * .25; } e[y] = s; }
+  var win = Math.max(1, Math.round(sh * (nw * 9 / 16) / nh)); if (win >= sh) return 0.5;
+  var best = 0, bs = -1, tot = 0; for (var k = 0; k <= sh - win; k++) {
+    var sum = 0; for (var j = k; j < k + win; j++) sum += e[j];
+    var centre = (k + win / 2) / sh, bias = 1 - Math.abs(centre - 0.42) * 0.5;     // faces tend to sit in the upper-middle
+    sum *= bias; if (sum > bs) { bs = sum; best = k; } }
+  return best / (sh - win);
+}
+function render(im, nw, nh, pos, w, h, q){
+  var c = $('cv'); c.width = w; c.height = h; var x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
+  var sr = nw / nh, tr = w / h, sx = 0, sy = 0, sw = nw, sh = nh;
+  if (sr > tr) { sw = nh * tr; sx = (nw - sw) * 0.5; } else { sh = nw / tr; sy = (nh - sh) * pos; }
+  x.drawImage(im, sx, sy, sw, sh, 0, 0, w, h);
+  return new Promise(function(res){ c.toBlob(res, 'image/jpeg', q); });
+}
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function upload(blob, id, kind){ return fetch(qs('/m/upload?id=' + id + '&kind=' + kind), {method: 'POST', body: blob}).then(function(r){ if (!r.ok) throw new Error('upload ' + r.status); }); }
+function processOne(file, i, n, pos){
+  return loadImage(file).then(function(o){
+    var im = o.im, nw = im.naturalWidth, nh = im.naturalHeight;
+    var p = pos != null ? pos : (nw / nh >= 16 / 9 ? 0.5 : autoCropPos(im, nw, nh));
+    return render(im, nw, nh, p, W, H, 0.88).then(function(full){
+      return render(im, nw, nh, p, 320, 180, 0.78).then(function(th){
+        var id = uid(); URL.revokeObjectURL(o.url);
+        return upload(th, id, 'thumb').then(function(){ return upload(full, id, 'full'); });
+      });
+    });
+  });
+}
+var files = [], done = 0, failed = 0;
+$('pick').onclick = function(){ $('file').click(); };
+$('file').onchange = function(){
+  files = [].slice.call(this.files); this.value = ''; if (!files.length) return;
+  done = 0; failed = 0; $('pick').disabled = true; step();
+};
+function step(){
+  if (!files.length) { $('pick').disabled = false; $('prog').innerHTML = done + ' photo' + (done === 1 ? '' : 's') + ' added' + (failed ? ', ' + failed + ' failed' : '') + '. They will show on the TV within a minute.'; loadGallery(); return; }
+  var f = files.shift(), total = done + failed + files.length + 1;
+  $('prog').innerHTML = 'Adding photo ' + (done + failed + 1) + ' of ' + total + '…<div class="bar"><i style="width:' + Math.round(100 * (done + failed) / total) + '%"></i></div>';
+  processOne(f).then(function(){ done++; }).catch(function(e){ failed++; }).then(step);
+}
+
+/* ---------- settings ---------- */
+var S = null, saveT = null;
+function bind(){
+  function chk(id, get, set){ var e = $(id); e.checked = !!get(); e.onchange = function(){ set(e.checked); save(); }; }
+  function sel(id, get, set){ var e = $(id); e.value = String(get()); e.onchange = function(){ set(e.value); save(); if (id === 's_wm') zrow(); }; }
+  chk('s_bg', function(){ return S.bg.on; }, function(v){ S.bg.on = v; });
+  sel('s_bgm', function(){ return S.bg.everyMin; }, function(v){ S.bg.everyMin = +v; });
+  chk('s_sv', function(){ return S.saver.on; }, function(v){ S.saver.on = v; });
+  sel('s_idle', function(){ return S.saver.idleMin; }, function(v){ S.saver.idleMin = +v; });
+  chk('s_svp', function(){ return S.saver.photos; }, function(v){ S.saver.photos = v; });
+  chk('s_svw', function(){ return S.saver.weather; }, function(v){ S.saver.weather = v; });
+  chk('s_24', function(){ return S.clock24; }, function(v){ S.clock24 = v; });
+  sel('s_wm', function(){ return S.weather.mode; }, function(v){ S.weather.mode = v; });
+  sel('s_unit', function(){ return S.weather.unit; }, function(v){ S.weather.unit = v; });
+  var z = $('s_zip'); z.value = S.weather.zip || ''; z.oninput = function(){ z.value = z.value.replace(/\D/g, '').slice(0, 5); if (z.value.length === 5) { S.weather.zip = z.value; S.weather.mode = 'zip'; $('s_wm').value = 'zip'; zrow(); save(); } };
+  zrow();
+}
+function zrow(){ $('zrow').style.display = $('s_wm').value === 'zip' ? 'flex' : 'none'; }
+function save(){ clearTimeout(saveT); saveT = setTimeout(function(){ post('/m/settings', JSON.stringify(S)).then(function(){ status('Saved. The TV picks changes up within 30 seconds.'); }).catch(function(){ status('Could not save', true); }); }, 350); }
+var DEF = {weather: {mode: 'auto', zip: '', unit: 'F'}, clock24: false, bg: {on: true, everyMin: 10}, saver: {on: true, idleMin: 2, photos: true, slideSec: 12, weather: true}};
+function merge(d, s){ for (var k in s) { if (s[k] && typeof s[k] === 'object' && !Array.isArray(s[k])) { d[k] = d[k] && typeof d[k] === 'object' ? d[k] : {}; merge(d[k], s[k]); } else d[k] = s[k]; } return d; }
+getJSON('/m/settings').then(function(j){ S = merge(JSON.parse(JSON.stringify(DEF)), j); bind(); }).catch(function(){ status('This link is not valid any more. Scan the QR code on the TV again.', true); });
+loadGallery();
+})();
+</script>
+</body>
+</html>

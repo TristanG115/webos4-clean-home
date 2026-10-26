@@ -1,0 +1,34 @@
+after-now.uptime_s=1031.05
+after-now.loadavg1=30.90
+after-now.procs=268
+after-now.mem_free_mb=43
+after-now.mem_avail_mb=275
+after-now.cache_mb=224
+after-now.swap_used_mb=279
+after-now.vm_si_kb_s=1
+after-now.vm_so_kb_s=0
+after-now.vm_irq_s=15065
+after-now.vm_ctx_s=27805
+after-now.cpu_us=3.9
+after-now.cpu_sy=7.6
+after-now.cpu_idle=88.6
+after-now.cpu_wa=0.0
+after-now.luna_rtt_ms=16
+after-now.fork300_ms=1149
+after-now.top1=com.webos.app.i:59MB
+after-now.top2=surface-manager:35MB
+after-now.top3=ss.gateway:16MB
+after-now.top4=com.webos.app.t:13MB
+after-now.top5=MaliitServer:11MB
+after-now.top6=pbs:11MB
+after-now.launch_visible_ms_com.palm.app.settings= 1257 1076 988
+after-now.launch_visible_ms_youtube.leanback.v4= 1908 1219 1226
+after-now.launch_visible_ms_netflix= 2119 1924 1170
+tail: can't open '/var/log/messages': No such file or directory
+tail: no files
+after-now.launch_visible_ms_home= 1110 1292 NA
+grep: /var/log/messages: No such file or directory
+after-now.admanager_requests_since_boot=
+grep: /var/log/messages: No such file or directory
+after-now.admanager_impressions_since_boot=
+after-now.end_swap_used_mb=274

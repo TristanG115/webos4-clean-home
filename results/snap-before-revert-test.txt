@@ -1,0 +1,28 @@
+--- hosts
+127.0.0.1	localhost.localdomain		localhost
+
+# The following lines are desirable for IPv6 capable hosts
+::1     localhost ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+
+# This file is dynamically regenerated on boot by webosbrew startup script
+127.0.0.1 snu.lge.com su-dev.lge.com su.lge.com su-ssl.lge.com
+::1 snu.lge.com su-dev.lge.com su.lge.com su-ssl.lge.com
+--- mounts of interest
+tmp /etc/hosts tmpfs rw,relatime 0 0
+--- upstart
+remotelogger start/running, process 1193
+nudge start/running, process 5252
+contentminer start/running, process 3061
+--- prefs
+a870f805ed0fc7f82320f3d326e6b183  /var/luna/preferences/general
+ef42fdcb25bdf58384ff384472c8e4c7  /var/luna/preferences/option
+--- init.d
+total 8
+drwxr-xr-x    2 root     root          4096 Oct 26 11:55 .
+drwxr-xr-x    4 root     root          4096 Oct 26 12:04 ..
+--- procs
+ 4930 ?        00:01:03 admanager
