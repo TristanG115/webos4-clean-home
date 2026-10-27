@@ -119,3 +119,31 @@ Ranked by value for effort. S = under a day, M = a few days, L = a week or more.
 | `bench.sh`, `tools/bench-quick.sh` | Launch latency, memory, swap |
 
 Gaps: physical Back key on Home, the pointer setting, an actual app update installing, the rootless IPK on a real TV, and `install.sh` end to end on a clean TV. These need a person or a second TV.
+
+## 7. Round 8: snappiness, memory, and what the compositor will not let us do (2026-10-27)
+
+All numbers from the dev TV, raw output in `results/r8-*.txt`; tools: `tools/settings-latency.sh`, `tools/loaded-test.sh`.
+
+### 7.1 Why the Settings key felt slow
+
+| Part | Before | Now |
+|---|---|---|
+| Key reaches our code | **0.6-0.9 s late**: the hook followed the system log with BusyBox `tail -F`, which polls once a second | **about 90 ms**: the patched compositor script launches the page itself (`lunaCall` -> WebAppMgr `launchApp`) |
+| Page creation + first paint | about 1.05 s: about 450 ms is WebAppMgr creating the page before our HTML even arrives, 65 ms is our JavaScript, the rest is HTML/CSS parse and first frame | unchanged (the QR library is loaded on demand: no measurable gain, kept anyway because Home and Settings parse 57 KB less) |
+| Total, key to visible | 1.2-2.3 s idle, 2.8 s when the TV was short of RAM | about 1.2-1.4 s expected (the physical key itself could not be tested without the remote) |
+
+What is left is WebAppMgr's page creation. Keeping a hidden page alive is not possible (pages have no `webOSSystem`, there is no hide call); LG's CRIU quick-start (`supportQuickStart`, `/var/log/*_criu_*.log`) is an untested lead.
+
+### 7.2 Memory
+
+* The TV swaps to an **encrypted eMMC partition** with `vm.swappiness=100`; after 4.5 h it had written 965k pages (3.7 GB). `vmtune` (swappiness 20): for the same cycle swap-ins 6972 -> 4025 (-42 %), swap-outs 20192 -> 12538 (-38 %), major faults 7490 -> 4387 (-41 %) at swappiness 15; 40 gave -23 %, -37 %, -24 %. Fewer flash writes, fewer stalls.
+* Who holds the RAM: WebAppMgr main process about 290 MB RSS, one renderer about 130 MB, Netflix kept resident about 125 MB (RSS+swap), the HDMI input app about 65 MB. No daemon is above 8 MB, so stopping more services saves almost nothing.
+
+### 7.3 The pointer: what was tried and what is left
+
+Tested from inside the compositor (QML probe, then removed): `compositor.cursorVisible` is **read-only**; `mouseEventEnabled` is already false and does not gate the Magic Remote pointer; the object only offers `setEnableCursorChange`, `setMouseFocus`, `updateCursorFocus`. In `KeyFilters/*.js` the `compositor` object does not exist at all, so the Round 7c lines there never did anything. LG's `cursorAutoRemover` is already on.
+
+Leads that are left (all need the remote awake, so they could not be tested alone):
+1. lginput2's mrcu methods found with `strings`: `cursor/setSensitivity`, `setHotkeyCursorPolicy{button,cursorPolicy}` (maybe a policy for the wheel), `setCursorBounds` (a 1 x 1 area in a corner), `setSlideMode`, `setAutoAlign`. Cheap to try with a watcher like `pointer.sh`, no restart.
+2. A grab-and-re-emit evdev proxy that drops the pointer axes: kernel releases a grab when the process dies, but the Magic Remote's keys share those devices, so a bug could leave the remote dead (ssh and the phone page would remain). Not built.
+3. Not recommended: `enableMrcu` / `activateMrcu` (they disable the whole remote), injecting into lginput2 like cleanyourtv-WebOS does (their issue 23: it broke HDMI-CEC / eARC).
