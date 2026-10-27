@@ -1,0 +1,6 @@
+loaded.mem_free_mb=51
+loaded.mem_avail_mb=214
+loaded.swap_used_mb=250
+loaded.swappiness=100
+settings_key_to_visible_ms: 1241 1609 1780 1789 1867
+loaded.swap_pages_in_during=764 out=2870

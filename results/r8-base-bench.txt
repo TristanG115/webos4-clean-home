@@ -1,0 +1,9 @@
+base8.mem_free_mb=131
+base8.mem_avail_mb=339
+base8.cache_mb=157
+base8.swap_used_mb=251
+base8.procs=269
+base8.launch_visible_ms_youtube.leanback.v4= 1883 1316 1376
+base8.launch_visible_ms_netflix= 2113 1932 1276
+base8.launch_visible_ms_home= 1353 1486 1230
+base8.end_swap_used_mb=240

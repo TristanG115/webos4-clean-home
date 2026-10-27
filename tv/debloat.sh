@@ -1,6 +1,6 @@
 #!/bin/sh
 # debloat.sh apply|undo|status|state|sweep [item ...]
-#   items: hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates qspatch   (catalog: services.tsv)
+#   items: hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates qspatch vmtune   (catalog: services.tsv)
 #   apply   with no items = every item that is switched ON in state/svc.conf (defaults from services.tsv)
 #   state   machine-readable "id active" lines (used by the Settings screen)
 #   sweep   re-apply whatever LG may have started again (cheap and idempotent; run at boot for 5 minutes and every few minutes after)
@@ -8,7 +8,7 @@
 # `lgsettings`/`updates`, which flip LG's own switches through LG's settings service (originals saved by undo / left as found).
 . /media/developer/tv-debloat/common.sh
 ACTION=${1:-status}; [ $# -gt 0 ] && shift
-ALL="hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates qspatch"
+ALL="hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates qspatch vmtune"
 CONF=$STATE/svc.conf; CATALOG=$D/services.tsv
 
 # --- which items are switched on ---------------------------------------------------------------------------------------
@@ -156,6 +156,19 @@ do_qspatch() {
     status) echo "qspatch: $(sh "$D/qspatch.sh" status)";;
   esac
 }
+# vmtune: the kernel swaps to the encrypted eMMC partition with vm.swappiness=100 (it prefers swapping program memory over dropping cache). 20 keeps the
+# running apps in RAM: measured on the dev TV for the same usage cycle, 42 % fewer swap-ins, 38 % fewer swap-outs, 41 % fewer major faults (results/r8-swappiness.txt).
+# Runtime only (/proc/sys), the original value is kept in state/vm.orig and a reboot is stock.
+VM_SWAPPINESS=20
+do_vmtune() {
+  case $ACTION in
+    apply|sweep) [ -s "$STATE/vm.orig" ] || cat /proc/sys/vm/swappiness > "$STATE/vm.orig"
+           [ "$(cat /proc/sys/vm/swappiness)" = "$VM_SWAPPINESS" ] || echo $VM_SWAPPINESS > /proc/sys/vm/swappiness
+           [ $ACTION = apply ] && echo "vmtune: swappiness $VM_SWAPPINESS";;
+    undo)  echo "$(cat "$STATE/vm.orig" 2>/dev/null || echo 100)" > /proc/sys/vm/swappiness; rm -f "$STATE/vm.orig"; echo "vmtune: swappiness back to stock";;
+    status) echo "vmtune: swappiness $(cat /proc/sys/vm/swappiness)";;
+  esac
+}
 do_updates() {
   case $ACTION in
     apply|sweep) upd_settings_apply; upd_hosts_apply
@@ -185,6 +198,7 @@ active_of() {
     epg) svc_running iepg && echo 0 || echo 1;;
     updates) upd_hosts_present && ! svc_running update && echo 1 || echo 0;;
     qspatch) is_mounted /usr/lib/qt5/qml/KeyFilters/appLaunch.js && echo 1 || echo 0;;
+    vmtune) [ "$(cat /proc/sys/vm/swappiness)" = "$VM_SWAPPINESS" ] && echo 1 || echo 0;;
   esac
 }
 if [ "$ACTION" = state ]; then for i in $ALL; do echo "$i $(active_of $i)"; done; exit 0; fi
@@ -202,6 +216,7 @@ for i in $ITEMS; do
     epg) do_epg;;
     updates) do_updates;;
     qspatch) do_qspatch;;
+    vmtune) do_vmtune;;
     *) echo "unknown item: $i";;
   esac
 done

@@ -173,3 +173,13 @@ Verified: conf get/set through the API, `due` for boot-like, just-checked, 4 h-a
 | Pointer: wheel scrolls, hover and click everywhere | `app.js`: `wheel` -> same handler as Up/Down; hover/click on pop-up lists, number pad, QR page, Settings rail/rows, Home tiles | - |
 
 Verified: apply, undo and re-apply through the Settings API (each about 10 s, UI healthy), `tools/check.sh` and `tools/keys-test.sh` pass with the patch active; the build prints exactly the intended diff. NOT verified: that the real gear key shows only our panel, and that the wheel no longer shows the arrow (the agent cannot press the key or see the screen). An injected wheel/move/click test reached the Home page neither with nor without the patch, so it proves nothing.
+
+## Round 8: snappiness and memory (everything measured on the dev TV, raw output in `results/r8-*.txt`)
+
+### 8a: swap less (`vmtune`)
+
+| What | Where / command | Undo |
+|---|---|---|
+| `vm.swappiness` 100 -> 20 (the TV swaps to an encrypted eMMC partition; it had written about 3.7 GB there in 4.5 h of use) | `debloat.sh` item `vmtune` (services.tsv, group "Memory & speed", default on), value in `VM_SWAPPINESS`, original kept in `state/vm.orig`, re-applied by the sweep; `/proc/sys` only | Settings -> Services & privacy switch, `sh debloat.sh undo vmtune`, `./revert.sh`, or a reboot (stock) |
+
+Measured with the same cycle (YouTube, Netflix, HDMI 2, Home; `results/r8-swappiness.txt`): swap-ins 6972 / 5347 / 4025, swap-outs 20192 / 12647 / 12538, major faults 7490 / 5705 / 4387 at swappiness 100 / 40 / 15. Fewer flash writes and fewer stalls; the Settings-key latency itself did not change (see 8b). Verified: apply, undo, re-apply, `tools/check.sh` passes. Value 20 chosen as a middle between the measured 40 and 15; not measured on its own.

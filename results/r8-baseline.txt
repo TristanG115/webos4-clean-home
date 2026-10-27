@@ -1,0 +1,9 @@
+x mem_free=39MB avail=164MB swap_used=270MB
+x swap_in=0KB/s swap_out=0KB/s irq=13251/s ctx=23922/s idle=88.6%
+x fork300=1190ms
+x luna_rtt=15ms procs=268
+settings_key_to_visible_ms: NA NA NA NA NA
+PASS HDMI 1 opens (com.webos.app.hdmi1) visible in 404 ms
+PASS Home shows after HDMI (com.webos.app.fullhome) visible in 207 ms
+load: 31.65 31.19 31.03  swap_used_mb: 284  mem_avail_mb: 195
+RESULT: ALL CHECKS PASSED

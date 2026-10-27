@@ -1,0 +1,9 @@
+swappiness=100 cycle: swapin=6972 swapout=20192 majfault=7490
+  avail=209MB cached=159MB swap_used=277MB
+settings_key_to_visible_ms: 2488(launch_returned_at=1099) 1160(launch_returned_at=320) 1584(launch_returned_at=830) 1865(launch_returned_at=1119)
+swappiness=40 cycle: swapin=5347 swapout=12647 majfault=5705
+  avail=207MB cached=159MB swap_used=274MB
+settings_key_to_visible_ms: 2278(launch_returned_at=659) 1943(launch_returned_at=1079) 1683(launch_returned_at=930) 1776(launch_returned_at=1040)
+swappiness=15 cycle: swapin=4025 swapout=12538 majfault=4387
+  avail=203MB cached=161MB swap_used=279MB
+settings_key_to_visible_ms: 2023(launch_returned_at=560) 1043(launch_returned_at=209) 1680(launch_returned_at=919) 1737(launch_returned_at=1010)
