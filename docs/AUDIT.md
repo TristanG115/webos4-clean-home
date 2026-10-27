@@ -147,3 +147,13 @@ Leads that are left (all need the remote awake, so they could not be tested alon
 1. lginput2's mrcu methods found with `strings`: `cursor/setSensitivity`, `setHotkeyCursorPolicy{button,cursorPolicy}` (maybe a policy for the wheel), `setCursorBounds` (a 1 x 1 area in a corner), `setSlideMode`, `setAutoAlign`. Cheap to try with a watcher like `pointer.sh`, no restart.
 2. A grab-and-re-emit evdev proxy that drops the pointer axes: kernel releases a grab when the process dies, but the Magic Remote's keys share those devices, so a bug could leave the remote dead (ssh and the phone page would remain). Not built.
 3. Not recommended: `enableMrcu` / `activateMrcu` (they disable the whole remote), injecting into lginput2 like cleanyourtv-WebOS does (their issue 23: it broke HDMI-CEC / eARC).
+
+### 7.4 Bugs the tests found (all fixed)
+
+* Boot-time apply of the compositor patch never worked (waited for a launcher that starts later) and a failed rollback could reboot-loop.
+* `revert.sh` rebooted the TV half-way when the compositor patch was active, and the boot sweep could undo a revert done in the first minutes after boot.
+* A JavaScript typo in a patched compositor script was rolled back automatically by the new "scripts must report in" check (nothing was lost: the TV came back with LG's own key filters).
+
+### 7.5 Parity with cleanyourtv (webOS) after this round
+
+Services stopped / stubbed: ours = `remotelogger nudge contentminer admanager acr2 voice* iot* homekit` + the firmware-update lock; theirs = `admanager adoverlay-service acr2 remotelogger service-logger contentminer nudge sportsalarm`. On webOS 4.5 only `acr2` of their extra four exists, and it is now stubbed. Still theirs and not ours: themes/languages, Live TV (M3U), the picture-notification endpoint, voice, Immich sync, an Input-key override (injects into lginput2: their issue 23 broke HDMI-CEC), and Back-on-Home opening a running-apps list. Still ours and not theirs: webOS 4 support, photo gallery and screensaver, LG picture/sound/power settings, host block lists with allow/custom lists, app-update control, backlight dimming, compositor patch with automatic rollback, measured recovery tests.

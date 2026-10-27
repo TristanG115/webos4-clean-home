@@ -211,3 +211,17 @@ Verified on the TV with real apps: options and expiry logic (all cases printed),
 ### 8d: boot test of the patched compositor
 
 Rebooted the TV twice: first boot correctly **refused** a build that had not been proven on a running TV (`qspatch: this build was never proven ...`), after proving it live the second boot applied it at 66 s uptime (7 s), launcher ready at 83 s, boot counter reset, `tools/check.sh` and `tools/keys-test.sh` pass. Compositor memory with LG's quick panel no longer pre-loaded: 56.6 / 56.7 MB (stock, two restarts) vs 52.6 MB (patched), `results/r8-compositor-ab.txt`.
+
+### 8e: acr2 stub, the way back re-proven (two bugs found), final numbers
+
+| What | Where / command | Undo |
+|---|---|---|
+| `acr2` (LG's viewing recognition, an on-demand service that exists on this firmware) is stubbed with the `contentminer` item, like `admanager`. `adoverlay-service`, `service-logger` and `sportsalarm` (in cleanyourtv-WebOS) do not exist on webOS 4.5 | `debloat.sh` | same switch, `undo`, `./revert.sh` |
+| Guide downloader (`iepg`, `broadcast-conf-downloader`) switched off on the dev TV through Settings -> Services (the owner only streams); saves about 7 MB; catalog default stays off for other TVs | `state/svc.conf` `epg=on` | Settings switch |
+
+**`revert.sh` re-proven with the round 8 items, two bugs found and fixed** (`results/r8-revert-test.txt`):
+1. `qspatch undo` waited for our launcher to report ready, but `revert.sh` has already given LG's Home back, so the undo "failed", rolled back and **rebooted the TV in the middle of the revert** (it came back stock because `DISABLE` was already set, but the init hook had not been renamed yet). `restart_ui` now only waits for a launcher when ours is the mounted Home.
+2. The boot sweep (`debloat.sh sweep` every 20 s for 5 minutes, then every 5 minutes from the Home watchdog) **re-applied the stubs after the revert** when the revert ran in the first minutes after boot. `debloat.sh apply|sweep` now refuse while `DISABLE` exists.
+After the fix: no stub mounts, no hosts block, swappiness 100, LG's Home and LG's remotelogger/nudge/contentminer/voice/iepg services running again; then the init hook and boot restored the working state. `tools/safety-test.sh` passes (`results/r8-safety-test.txt`; the first run showed an admanager stub while LG Home was active because the boot sweep of a TV rebooted minutes earlier was still running, the rerun showed 0).
+
+**Before / after** (same `tools/bench-quick.sh`, 3 reps, `results/r8-base-bench.txt` vs `results/r8-after-bench.txt`): YouTube cold launch median 1376 -> 1252 ms, Netflix 1932 -> 1723 ms, Home 1353 -> 1567 ms: all inside the usual +-0.3 s noise, i.e. no change. Swap in use at the end of the same cycle 240 -> 174 MB. Settings key to visible: about 2.0 s (0.6-0.9 s of log-polling lag + 1.05 s page) -> about 1.2 s (90 ms + 1.05 s page), the physical key itself untested.

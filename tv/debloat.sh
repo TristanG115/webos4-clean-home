@@ -8,6 +8,8 @@
 # `lgsettings`/`updates`, which flip LG's own switches through LG's settings service (originals saved by undo / left as found).
 . /media/developer/tv-debloat/common.sh
 ACTION=${1:-status}; [ $# -gt 0 ] && shift
+# revert.sh (and the crash-loop guard) create DISABLE: nothing may be switched on again behind their back (the boot sweep and the Home watchdog run `sweep` for minutes)
+case $ACTION in apply|sweep) [ -e "$D/DISABLE" ] && { echo "DISABLE flag present: not applying"; exit 0; };; esac
 ALL="hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates qspatch vmtune"
 CONF=$STATE/svc.conf; CATALOG=$D/services.tsv
 
@@ -206,7 +208,7 @@ if [ "$ACTION" = state ]; then for i in $ALL; do echo "$i $(active_of $i)"; done
 for i in $ITEMS; do
   case $i in
     hosts) do_hosts;;
-    remotelogger|nudge|contentminer) do_upstart $i;;
+    remotelogger|nudge|contentminer) do_upstart $i; [ $i = contentminer ] && stub_bin $ACTION acr2;;       # acr2 = LG's viewing recognition (Live Plus): an on-demand service, stubbed like admanager
     admanager) do_admanager;;
     lgsettings) do_lgsettings;;
     voice) do_voice;;

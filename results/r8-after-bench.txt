@@ -1,0 +1,9 @@
+after8.mem_free_mb=35
+after8.mem_avail_mb=140
+after8.cache_mb=142
+after8.swap_used_mb=211
+after8.procs=271
+after8.launch_visible_ms_youtube.leanback.v4= 2845 1186 1252
+after8.launch_visible_ms_netflix= 1723 1735 1222
+after8.launch_visible_ms_home= 1616 1567 1279
+after8.end_swap_used_mb=174

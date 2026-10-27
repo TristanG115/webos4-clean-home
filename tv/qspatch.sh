@@ -72,8 +72,8 @@ restart_ui() { # restart the compositor and bring everything back; 0 = healthy
   svc_up WebAppMgr || { initctl start WebAppMgr >/dev/null 2>&1; sleep 5; }
   i=0; while [ $i -lt 60 ]; do ui_healthy && break; sleep 3; i=$((i+3)); done
   ui_healthy || return 1
-  # at boot Home is not ours yet (home-on.sh runs after this): LG's own Home comes up, there is no launcher to wait for
-  [ "$BOOTMODE" = 1 ] && return 0
+  # at boot Home is not ours yet (home-on.sh runs after this) and during revert.sh it is LG's again: then there is no launcher to wait for
+  [ "$BOOTMODE" = 1 ] || is_mounted "$HOME_EXE" || return 0
   # Home: SAM normally starts it again; make sure, then wait for the launcher page to report ready (our stand-in is bind-mounted, so SAM runs it)
   rm -f "$STATE/launcher.ready"
   lun luna://com.webos.applicationManager/launch "{\"id\":\"$HOME_ID\"}" >/dev/null

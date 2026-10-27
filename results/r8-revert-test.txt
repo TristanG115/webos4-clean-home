@@ -1,0 +1,31 @@
+BEFORE: swappiness=20 acr2_stub=1 keyfilter_mounts=0 admanager_stub=1 standin=1 hosts_block=2 hook=zz-debloat  DISABLE=no
+      admanager: real binary restored (starts on demand)
+      lgsettings: LG defaults restored
+      nlpmanager: restored
+      voiceinput: running
+      voiceconductor: running
+      voice: back
+      iot-client: restored
+      ocf-onboarding: restored
+      homekit: restored
+      iot: back
+      preload: LG's pre-loading restored
+      idleapps: nothing to undo (apps start on demand)
+      iepg: running
+      broadcast-conf-downloader: running
+      updates: our extra blocks removed (automatic updates stay off in LG's settings; Homebrew's own server block stays)
+      undone
+      vmtune: swappiness back to stock
+[4/6] stop launcher API, Settings hook, RAM copy
+[5/6] rename init hook
+      zz-debloat -> zz-debloat.disabled
+[6/6] done - TV is stock again (launcher files stay in /media/developer/tv-debloat, inert while DISABLE exists)
+(--no-reboot: not rebooting)
+AFTER: swappiness=100 acr2_stub=1 keyfilter_mounts=0 admanager_stub=1 standin=0 hosts_block=2 hook=zz-debloat.disabled  DISABLE=yes
+tmpfs /mnt/lg/cmn_data/admanager/tmpData tmpfs rw,relatime 0 0
+hosts_block=0 swappiness=100 standin=0 DISABLE=/media/developer/tv-debloat/DISABLE hook=zz-debloat.disabled 
+remotelogger start/running, process 2594
+nudge start/running, process 2618
+contentminer start/running, process 2629
+voiceinput start/running, process 2743
+iepg start/running, process 2841
