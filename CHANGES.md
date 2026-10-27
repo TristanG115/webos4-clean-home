@@ -300,3 +300,11 @@ Tested on the dev TV with a local test source (`conf local=...`): update install
 | Round 13 measurements and the "why not keep Settings hot" numbers | AGENTS.md "Round 13 facts" | - |
 
 Not verified: the real remote's gear / mic / Mute x3 / Input Hub buttons (injected gear key and direct launches only); `mode=auto` self-update over days.
+
+## Added in round 14 (2026-10-27: memory guard)
+
+| What | Where / command | Undo |
+|---|---|---|
+| **Memory guard** (debloat item `memguard`, Services switch "Watch memory and protect the TV", default on): a 10 s loop reading /proc only; percentages of RAM by profile; low closes apps beyond the newest (`lastapp.sh evict 1`), critical also makes the Home page drop its photos (FIFO `lowmem`) and drops the page cache; steps down after 3 calm samples; history in RAM. Settings -> About & updates shows state, lowest free, most swap, episodes, last action and the profile choice (Automatic / Roomy / Standard / Weak). Proven with a 170 MB RAM hog: low, critical, photos dropped, recovery. | `tv/memguard.sh`, `tv/debloat.sh` (`do_memguard`), `tv/lastapp.sh` (`evict [N]`), `tv/api.sh` (`/api/mem`, `/api/mem/conf`, `guard` in sysinfo), `tv/launcher/app.js` (LOWMEM), `tv/services.tsv` | `sh debloat.sh undo memguard` or the switch; `revert.sh` stops it with the rest |
+
+Not verified: the guard on a genuinely weaker TV (only simulated with the Weak profile and a RAM hog); effect of `drop_caches` on responsiveness (unmeasured).

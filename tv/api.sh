@@ -154,6 +154,9 @@ case "$P" in
                 up > /tmp/qs-claim          # tell settings-hook.sh the key is handled
                 [ $home = true ] || ( setsid sh "$D/settings-open.sh" launch </dev/null >/dev/null 2>&1 & )      # not Home / page not listening: the overlay page
                 hdr "200 OK"; printf '{"home":%s}' "$home";;
+  /api/mem)     hdr "200 OK"; timeout -t 10 sh "$D/memguard.sh" json </dev/null 2>/dev/null || echo '{"running":false}';;
+  /api/mem/conf) case "$(qget v)" in auto|roomy|standard|weak) timeout -t 10 sh "$D/memguard.sh" conf profile "$(qget v)" </dev/null >/dev/null 2>&1;; esac
+                hdr "200 OK"; echo '{"ok":true}';;
   /api/backlight) case "$(qget v)" in
                   dim) pct=$(qget pct); timeout -t 15 sh "$D/backlight.sh" dim "$pct" </dev/null >/dev/null 2>&1;;
                   hold) sh "$D/backlight.sh" hold </dev/null >/dev/null 2>&1;;
@@ -185,7 +188,7 @@ case "$P" in
   /api/sysinfo) hdr "200 OK"
                 printf '{"uptime":%s,"mem":' "$(cut -d. -f1 /proc/uptime)"
                 awk '/^MemTotal/{t=$2}/^MemAvailable/{a=$2}/^SwapTotal/{st=$2}/^SwapFree/{sf=$2}END{printf "{\"totalMB\":%d,\"availMB\":%d,\"swapUsedMB\":%d}",t/1024,a/1024,(st-sf)/1024}' /proc/meminfo
-                printf ',"procs":%s,"lg":%s}' "$(ls /proc | grep -c '^[0-9]')" "$(lun luna://com.webos.service.tv.systemproperty/getSystemInfo '{"keys":["modelName","firmwareVersion","sdkVersion"]}' || echo '{}')";;
+                printf ',"procs":%s,"guard":%s,"lg":%s}' "$(ls /proc | grep -c '^[0-9]')" "$(timeout -t 5 sh "$D/memguard.sh" json </dev/null 2>/dev/null || echo '{"running":false}')" "$(lun luna://com.webos.service.tv.systemproperty/getSystemInfo '{"keys":["modelName","firmwareVersion","sdkVersion"]}' || echo '{}')";;
   /api/lg/get)  cat=$(qget cat); keys=$(qget keys)
                 case "$cat" in picture|sound|time|option|general|support|network|other|caption) ;; *) bad; exit 0;; esac
                 printf %s "$keys" | grep -Eq '^[A-Za-z0-9_,]{1,900}$' || { bad; exit 0; }

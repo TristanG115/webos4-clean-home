@@ -279,9 +279,9 @@ function refreshPhotos(cb){
 function setBodyBg(on){ cls(document.body, 'hasbg', on); }
 function hasBg(){ return document.body.className.indexOf('hasbg') >= 0; }
 function layerStage(layer){ if (!layer._st) { layer._st = Stage.make(); layer.appendChild(layer._st); } return layer._st; }
-var bgIx = -1, bgFlip = 0, bgT = null, bgAt = 0;
+var bgIx = -1, bgFlip = 0, bgT = null, bgAt = 0, LOWMEM = false;      // LOWMEM: memguard.sh says the TV is short of memory (or is a weak one): no photos on Home or in the screensaver
 function bgShow(ix){
-  if (!photos.length || !S.bg.on) return;
+  if (!photos.length || !S.bg.on || LOWMEM) return;
   bgIx = ((ix % photos.length) + photos.length) % photos.length; bgAt = Date.now(); lsSet('bgName', photos[bgIx]);
   var name = photos[bgIx], a = $(bgFlip ? 'bgB' : 'bgA'), b = $(bgFlip ? 'bgA' : 'bgB'), im = new Image();
   im.onload = function(){
@@ -293,14 +293,14 @@ function bgShow(ix){
   im.src = photoUrl(name);
 }
 function bgPickNew(){
-  if (!photos.length || !S.bg.on) return;
+  if (!photos.length || !S.bg.on || LOWMEM) return;
   var last = lsGet('bgName'), n = photos.length, k = Math.floor(Math.random() * n);
   if (n > 1 && photos[k] === last) k = (k + 1 + Math.floor(Math.random() * (n - 1))) % n;
   bgShow(k);
 }
 function bgSchedule(){ clearTimeout(bgT); bgT = setTimeout(function(){ if (!document.hidden && !saverOn && !settingsOn) bgShow(bgIx + 1); bgSchedule(); }, Math.max(1, S.bg.everyMin) * 60000); }
 function bgApply(reschedule){
-  if (!S.bg.on || !photos.length) { $('bgA').className = $('bgB').className = 'bgl'; setBodyBg(false); layerStage($('bgA')).lastChild.removeAttribute('src'); layerStage($('bgB')).lastChild.removeAttribute('src'); }
+  if (!S.bg.on || !photos.length || LOWMEM) { $('bgA').className = $('bgB').className = 'bgl'; setBodyBg(false); layerStage($('bgA')).lastChild.removeAttribute('src'); layerStage($('bgB')).lastChild.removeAttribute('src'); }
   else if (reschedule && bgIx < 0) bgPickNew();
   else if (!hasBg()) bgShow(bgIx < 0 ? 0 : bgIx);
   if (reschedule) bgSchedule();
@@ -339,7 +339,7 @@ function saverStart(){
   saverOn = true; lastT = lastD = ''; tick(); wxRender();
   // free the Home background while the screensaver runs: two big photos at once would make the TV swap
   ['bgA', 'bgB'].forEach(function(id){ var l = $(id); l.className = 'bgl'; layerStage(l).lastChild.removeAttribute('src'); }); setBodyBg(false);
-  var withPhotos = S.saver.photos && photos.length > 0;
+  var withPhotos = S.saver.photos && photos.length > 0 && !LOWMEM;
   $('saver').className = 'on' + (withPhotos ? '' : ' nophoto');
   $('sdim').style.opacity = ((S.saver.dim === undefined ? 30 : S.saver.dim) / 100);
   blDim(); api('/api/history?v=saver', noop);      // Back forgets where you were, if the options say so
@@ -718,6 +718,12 @@ cats = [
     inf('Model', function(){ return lg.modelName || '–'; }), inf('Firmware', function(){ return lg.firmwareVersion || '–'; }), inf('webOS SDK', function(){ return lg.sdkVersion || '–'; }),
     inf('Memory free', function(){ return (m.availMB || 0) + ' of ' + (m.totalMB || 0) + ' MB'; }), inf('Swap in use', function(){ return (m.swapUsedMB || 0) + ' MB'; }),
     inf('Running for', function(){ var s = j.uptime || 0, h = Math.floor(s / 3600), mi = Math.floor((s % 3600) / 60); return h + ' h ' + mi + ' min'; }), inf('Processes', function(){ return String(j.procs || '–'); }),
+    head('Memory guard'),
+    inf('Guard', function(){ var g = j.guard || {}; return !g.running ? 'off' : g.level === 'ok' ? 'watching, all fine' : g.level === 'low' ? 'LOW: closing idle apps' : 'CRITICAL: Home photos dropped'; }, 'Checks free memory and swapping every 10 seconds and steps in before the TV slows down. Switch in Services & privacy.'),
+    inf('Lowest free memory since start', function(){ var g = j.guard || {}; return g.minAvailMB === null || g.minAvailMB === undefined ? '–' : g.minAvailMB + ' MB'; }),
+    inf('Most swap used since start', function(){ var g = j.guard || {}; return g.maxSwapMB === null || g.maxSwapMB === undefined ? '–' : g.maxSwapMB + ' of ' + (g.swapTotalMB || 0) + ' MB'; }),
+    inf('Times it had to step in', function(){ var g = j.guard || {}; return (g.lowEpisodes || 0) + ' low, ' + (g.criticalEpisodes || 0) + ' critical'; }, function(){ var g = j.guard || {}; return g.lastAction ? 'Last: ' + g.lastAction : 'It has not needed to act since the TV started.'; }),
+    chc('Memory profile', 'How strict the guard is. Automatic picks from the TV’s memory (under 800 MB = Weak: no Home photos at all).', [['auto', 'Automatic'], ['roomy', 'Roomy'], ['standard', 'Standard'], ['weak', 'Weak']], function(){ return (j.guard && j.guard.setting) || 'auto'; }, function(v){ j.guard = j.guard || {}; j.guard.setting = v; api('/api/mem/conf?v=' + v, function(){ toast('Profile: ' + v); }); }),
     head('Updates are blocked on purpose'),
     inf('Automatic system updates', function(){ return (LGC.support || {}).automaticUpdate === 'off' ? 'Off (locked)' : 'ON - will be switched off shortly'; }, 'A firmware update could remove root access and bring LG’s ads back, so this stays off and the update servers are blocked.'),
     inf('Automatic app updates', function(){ return (LGC.option || {}).appUpdateMode === 'manual' ? 'Manual (locked)' : 'Automatic - will be switched off shortly'; }),
@@ -1054,9 +1060,11 @@ if (INPMODE) {
     if (MOCK) return;
     xhr('GET', API + '/api/ui/wait', null, function(err, j){
       if (j && j.cmd === 'settings') { api('/api/ui/ack', noop, 3000); uiSettings(); }
+      else if (j && (j.cmd === 'lowmem' || j.cmd === 'normal')) memMode(j.cmd === 'lowmem');
       setTimeout(uiWait, err ? 3000 : 30);
     }, 110000);
   }
+  function memMode(on){ if (LOWMEM === on) return; LOWMEM = on; dlog('memory mode ' + (on ? 'low' : 'normal')); bgApply(true); }
   function uiSettings(){
     if (settingsOn) { closeSettings(); return; }
     if (saverOn) saverStop();

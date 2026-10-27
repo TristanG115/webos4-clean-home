@@ -1,5 +1,15 @@
 [
   {
+    "v": "2026.10.27.3",
+    "date": "2026-10-27",
+    "title": "Memory guard: the TV protects itself when memory runs short",
+    "notes": [
+      "New: a memory guard watches free memory and swapping every 10 seconds. If the TV starts to run short it first closes apps you are not using, then (if it gets serious) drops the Home photos and clears file cache, and puts everything back when things are calm. It is built for TVs with less memory too: it works in percentages and is stricter on a weaker TV.",
+      "New: Settings > About & updates now has a Memory guard section: its state, the lowest free memory and most swap since the TV started, how many times it had to step in, and a Memory profile choice (Automatic, Roomy, Standard, Weak). Weak keeps Home and the screensaver free of photos.",
+      "The guard has a switch in Settings > Services & privacy (Watch memory and protect the TV)."
+    ]
+  },
+  {
     "v": "2026.10.27.2",
     "date": "2026-10-27",
     "title": "Settings opens almost instantly from Home, and LG's leftover menus are closed",

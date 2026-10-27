@@ -10,7 +10,7 @@
 ACTION=${1:-status}; [ $# -gt 0 ] && shift
 # revert.sh (and the crash-loop guard) create DISABLE: nothing may be switched on again behind their back (the boot sweep and the Home watchdog run `sweep` for minutes)
 case $ACTION in apply|sweep) [ -e "$D/DISABLE" ] && { echo "DISABLE flag present: not applying"; exit 0; };; esac
-ALL="hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates cursorclear qspatch vmtune lgmenus"
+ALL="hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates cursorclear qspatch vmtune lgmenus memguard"
 CONF=$STATE/svc.conf; CATALOG=$D/services.tsv
 
 # --- which items are switched on ---------------------------------------------------------------------------------------
@@ -168,6 +168,14 @@ do_cursorclear() {
     status) echo "cursorclear: $(sh "$D/cursorclear.sh" status)";;
   esac
 }
+# memguard: watches free memory / swap-in and steps in before the TV thrashes (memguard.sh); a long-running loop, restarted by the sweep if it ever dies
+do_memguard() {
+  case $ACTION in
+    apply|sweep) sh "$D/memguard.sh" start; [ $ACTION = apply ] && echo "memguard: watching";;
+    undo)  sh "$D/memguard.sh" stop;;
+    status) echo "memguard: $(sh "$D/memguard.sh" status)";;
+  esac
+}
 # lgmenus: LG's hidden or leftover menus that the remote can still open (the mic key = voice assistant overlay, three presses of Mute = the hidden service / local-key menu,
 # the Input Hub key = Home Connect). lastapp.sh closes them the moment SAM announces their launch (splash event, about 0.05 s after) while this flag exists.
 do_lgmenus() {
@@ -220,6 +228,7 @@ active_of() {
     updates) upd_hosts_present && ! svc_running update && echo 1 || echo 0;;
     qspatch) is_mounted /usr/lib/qt5/qml/KeyFilters/appLaunch.js && echo 1 || echo 0;;
     cursorclear) is_mounted /usr/share/im && echo 1 || echo 0;;
+    memguard) sh "$D/memguard.sh" status | grep -q running && echo 1 || echo 0;;
     lgmenus) [ -e "$STATE/lgmenus.on" ] && echo 1 || echo 0;;
     vmtune) [ "$(cat /proc/sys/vm/swappiness)" = "$VM_SWAPPINESS" ] && echo 1 || echo 0;;
   esac
@@ -240,6 +249,7 @@ for i in $ITEMS; do
     updates) do_updates;;
     cursorclear) do_cursorclear;;
     qspatch) do_qspatch;;
+    memguard) do_memguard;;
     lgmenus) do_lgmenus;;
     vmtune) do_vmtune;;
     *) echo "unknown item: $i";;

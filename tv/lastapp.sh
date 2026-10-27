@@ -6,7 +6,7 @@
 #   clear [why]  forget everything (Back then has nowhere to go: the TV feels freshly turned on)
 #   cancel       Back while an app is still on its splash screen (foreground is still where the launch started): close the loading app and go back to where it was started
 #                (exit 0 = a launch was cancelled now or within the last 3 s, exit 1 = nothing was launching). Used by backchain.sh and /api/back.
-#   evict        keep only the app in front plus the most recent ones (option keep, default 2) in memory and close the other apps (called after every app change)
+#   evict [N]    (N = override, used by memguard.sh under memory pressure) keep only the app in front plus the most recent ones (option keep, default 2) in memory and close the other apps (called after every app change)
 #   conf         print the Back-button options; "conf key value" sets one (state/back.conf)
 # Inputs (HDMI, TV) stay "running" in the background, normal apps disappear when closed, so closed apps are skipped when looking back.
 # Options (Settings -> Remote & pointer -> Back button):
@@ -88,7 +88,7 @@ case ${1:-start} in
     LW=10000 lun luna://com.webos.applicationManager/launch "{\"id\":\"$FROM\",\"params\":{}}" >/dev/null
     log "lastapp: Back while $L was loading -> closed it, back to $FROM"; echo "$L"; exit 0;;
   evict) # called after an app (or input) comes to the front: keep it and the most recent ones, close every other app (option keep, default 2)
-    k=$(bconf keep 2); [ "$k" -gt 0 ] 2>/dev/null || exit 0; [ -e "$D/DISABLE" ] && exit 0
+    k=${2:-$(bconf keep 2)}; [ "$k" -gt 0 ] 2>/dev/null || exit 0; [ -e "$D/DISABLE" ] && exit 0
     cur=$(cat /tmp/fgnow 2>/dev/null)
     case "$cur" in ''|"$HOME_ID"|"$SET_ID"|"$INP_ID"|com.webos.app.quicksettings|com.webos.app.screensaver*|com.webos.app.notification*|com.webos.app.splash) cur="";; esac
     keepset=$(awk '{a[NR]=$1} END{for(i=NR;i>=1;i--) print a[i]}' $STK 2>/dev/null | awk -v k="$k" '!s[$1]++ && n < k { print $1; n++ }')       # newest first; the app that just came to the front is the newest entry
