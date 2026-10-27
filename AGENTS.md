@@ -18,6 +18,7 @@ A shell + plain-HTML/JS replacement for the **LG webOS 4.x Home screen**, plus a
 | Persistence, recovery, undo | `tv/boot.sh`, `tv/zz-debloat`, `tv/revert.sh`, `revert.sh` |
 | Measuring and testing | `bench.sh`, `tools/*` |
 | App updates (auto) and the firmware-update lock | `tv/appupdate.sh`, `do_updates` in `tv/debloat.sh` |
+| Self-update of this project from GitHub (check, change notes, install with safety copy and automatic roll-back, Home note when an update is ready) | `tv/selfupdate.sh`, `tv/VERSION`, `tv/notes.json`, `tools/release-check.js`; Settings -> Software updates in `app.js` |
 | Installing on another TV (rooted) / without root | `install.sh`, `tools/diagnose.sh`, `tv.conf`; `rootless/README.md`, `tools/export-blocklist.js`, `tools/make-ipk.js`, `tv/launcher/rootless.js` |
 
 Results on the dev TV: cold Home start 7.5 s -> 1.1 s, Home process 150 MB -> 54 MB, swap 428 -> 253 MB, ad impressions -> 0 (details: `README.md`, `results/`).
@@ -63,6 +64,8 @@ tv/                   everything deployed to /media/developer/tv-debloat on the 
   backchain.sh        start|stop: Back from an app returns to the previous app (keywatch.py reads KEY_BACK from /dev/input/event* of the LGE remotes; history from lastapp.sh)
   keywatch.py         read-only evdev Back-key reporter (Python 2.7; struct input_event is 16 bytes). Test without the remote: write a 16-byte KEY_BACK (code 158) down+up event pair to /dev/input/event1
   pointer.sh          off|on|apply|watch|stop: EXPERIMENTAL Magic Remote pointer switch (wake-on-shake + motion sensor off), re-applied by a watcher when the remote reconnects
+  selfupdate.sh       check|apply [force]|auto|due|rollback|json|conf: pulls this project's tv/ tree from GitHub (VERSION + notes.json first, tarball on apply), vets it (sh -n, key files), backs up the running code to backup/code-<v>.tgz, installs file by file (mv, new inode), restarts what changed, waits for a healthy launcher, else rolls back and remembers state/update-failed. Settings in state/update.conf (mode notify|auto|off, every, startup, repo, branch, local= for tests)
+  VERSION, notes.json the version (YYYY.MM.DD.N) and the plain-language change notes the TVs read from GitHub: see section 11 (every push that changes tv/ needs an entry)
   appupdate.sh        json|mode|check|apply|pending: option.appUpdateMode=auto, waiting updates (appUpdateService/statusAll), "check now" via an activitymanager activity
   settings-open.sh    open|launch|toggle|close our Settings overlay (launch = no is-it-open check, used by the hook) (a second WAM page, settings.html, window type overlay)
   home-on.sh          start API, bind-mount the stand-in over LG's Home, wait <=30 s for the launcher to report ready (else fall back), start the watchdog
@@ -81,6 +84,7 @@ tools/                PC-side tools (Node 20+; run `npm install` in tools/ once)
   keys-test.sh       Settings key + Back chain end to end without the remote (injects evdev KEY_BACK and the lginput2 log line); opens HDMI 2/Netflix
   export-blocklist.js / make-ipk.js   the rootless pack (block lists for a router; experimental developer-mode app)
   check.sh            health check after any change (Settings, Home, Netflix, HDMI 1 all open) - runs on the TV
+  release-check.js    PC-side gate before a push: tv/VERSION == newest tv/notes.json entry, notes well formed, app.js and every tv/*.sh pass a syntax check, no CRLF (deploy.sh runs it too)
   safety-test.sh      proves the recovery paths - runs on the TV
   quick.sh            10 s memory/CPU snapshot - runs on the TV
   bench-compare.js    markdown table from results/*.txt
@@ -193,6 +197,12 @@ Facts verified on webOS 4.5 (re-verify on other versions):
 - **LG's memory manager** is `memchute` (`com.webos.memorymanager`, `/etc/palm/memorymanager-conf.json`: priority groups, `KeepOnLaunch`, `EfsTarget` includes YouTube). It evicts background apps by priority when memory is short; closing is reported as `close ... reason: memoryReclaim`. `/etc/palm/preload` policy: Netflix, Amazon, Browser, Tips, Assistant preload off (our `preload` item), YouTube `semi-full` and the HDMI input apps stay on.
 - BusyBox has no `paste`, no `grep --line-buffered`, no `ls --time-style`, no `time` keyword; `nice`, `setsid`, `usleep` exist. In `sh -s < file` tests the pipeline `luna-send -i ... | while read` delivers one compact JSON line per message.
 
+### Round 12 facts (verified on the dev TV, webOS 4.5)
+
+- **Boot bug fixed (why the TV came up on LG's Home once)**: in `qspatch.sh restart_ui` the line meant to skip the "wait for the launcher" step at boot was inverted (`[ "$BOOTMODE" = 1 ] || is_mounted ... || return 0`), so a boot-time apply waited 45 s for a launcher that starts only later, rolled back, rebooted, and every later boot skipped qspatch ("never proven"). Now `[ "$BOOTMODE" = 1 ] && return 0` first. After ANY rollback like that run `sh qspatch.sh apply` once from ssh (writes `state/qspatch.verified`), then reboot-test.
+- **Self-update** (`selfupdate.sh`, loopback API `/api/update*`, Settings -> Software updates, Home pill): the TV has curl + HTTPS to raw.githubusercontent.com and github.com, GNU tar (`--strip-components`, `--wildcards`), `sha256sum`, Python 2.7 `json`. `check` reads `tv/VERSION` (20 bytes) then `tv/notes.json`; `apply` downloads the branch tarball (3.7 MB), unpacks only `*/tv/*` into `/tmp/tvd-update/stage`, refuses it unless key files exist and every `.sh`/`zz-debloat`/`.py` parses, backs up the code (three newest kept), installs file by file with `cp` + `mv -f` (a running script keeps its old inode), deletes files the new tree dropped (list in `state/installed.files`), refreshes the init hook copy only if it is installed, then restarts only what changed (`debloat.sh apply`, `qspatch.sh reapply` if qspatch.sh / qs/ changed and it is ACTIVE, Home cycle for launcher/loops/api/common changes). Healthy = stand-in mounted + `launcher.ready` + API answers within 120 s; otherwise it restores the backup and writes `state/update-failed` (not retried automatically). `mode` notify (default) / auto (installs only when `/tmp/saver-on` or no foreground app) / off. Tested with `conf local=<dir>` (a folder holding `tv/`): happy path, syntax error refused, launcher JS error rolled back in about 2 min, removed file cleaned. Not tested: a real GitHub download of a newer version (nothing newer is published until the first push with this feature), `mode=auto` over a long period.
+- **Trust**: whoever can push to the configured repo/branch runs code as root on every TV that updates from it. Keep the GitHub account protected (2FA); forks set `repo`/`branch` with `selfupdate.sh conf repo owner/name`.
+
 ## 6. Safety net (and how to prove it)
 
 | Layer | What | Test |
@@ -302,11 +312,18 @@ physical-remote Back/Home key behaviour (injected keys only).
 - Local repo, branch `main`. Commit messages end with the attribution line required by the environment. Keep commits focused; update `CHANGES.md` for any TV-affecting change.
 - **Commit incrementally** (owner's standing instruction, 2026-10-26): after every finished, tested piece of work make a commit whose message is a detailed log of what was done (what changed, where, why, what was tested, what is still unverified). Do not batch a whole task into one commit and do not leave work uncommitted between pieces.
 - **Push once, at the end of the task**, after the section 12 privacy audit and after `tools/check.sh` passed. The owner pre-authorized this push for their own repo (`origin`, https://github.com/TristanG115/webos4-clean-home); do not wait to be asked again, and do not push in the middle of a task. Report what was pushed.
+- **Change notes are mandatory (owner's standing instruction, 2026-10-27).** The owner's TVs, and friends' and family's TVs, update themselves from this repo and show what changed *before* installing. So every push that changes anything under `tv/` must carry:
+  1. a new **first** entry in `tv/notes.json`: `{"v": "YYYY.MM.DD.N", "date": "YYYY-MM-DD", "title": "short", "notes": ["plain-language sentence", ...]}`. Write for a non-technical household: what is new / faster / fixed and what they will notice, no jargon, no file names, no internal round numbers. Say honestly when something is new and not yet proven on a real remote. `N` counts up for several pushes on the same day.
+  2. `tv/VERSION` set to the same `v`.
+  3. `node tools/release-check.js` passing (also run by `tools/deploy.sh`).
+  Do not edit or delete old entries (TVs show the ones newer than what they have). Docs-only or PC-tools-only pushes need no entry. Technical detail still goes to `CHANGES.md` and AGENTS.md; `notes.json` is the user-facing summary.
+  **Pushing a tv/ change ships it to every TV that updates from this repo**, so before bumping the version: the exact tree must have been deployed and `tools/check.sh` must have passed on the dev TV, and a risky change (boot path, qspatch, home-on, selfupdate.sh itself) must also have been boot-tested. Never push a half-finished tv/ change in the middle of a task.
 - The repo is published on GitHub by the owner's request. Upstream contributions (issues/PRs to the projects in `NOTICE.md`) are drafted in `UPSTREAM-DRAFT.md` - ask first.
 
 ## 12. Pre-push privacy audit (run every time)
 
 ```
+node tools/release-check.js                      # tv/VERSION matches the newest tv/notes.json entry (the TVs read both from GitHub)
 git ls-files | grep -i -E "\.(jpe?g|png|heic)$|photos|tv-report|runner|shots|scratch" | grep -v -E "^docs/images/[a-z-]+\.png$|^tools/prep-photos.js$"     # must print nothing
 # every file in docs/images/ must have been made with PV_PUBLIC=1 and OPENED AND LOOKED AT before commit: no photo, no real city, no real IP, no names
 git grep -n -i -E "advertising|IFA|serial|passw|systemPin|[0-9a-f]{2}(:[0-9a-f]{2}){5}|<your public IP>" -- . ':!AGENTS.md'      # review hits

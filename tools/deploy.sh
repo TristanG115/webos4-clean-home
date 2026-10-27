@@ -7,4 +7,5 @@ cd "$(dirname "$0")/.." || exit 1
 . "$(dirname "$0")/../tv-env.sh"
 sed -i 's/\r$//' tv/*.sh tv/zz-debloat tv/*.tsv tv/blocklists/* 2>/dev/null
 EXCL=""; [ "$1" = "--no-photos" ] && EXCL="--exclude=./launcher/photos"
+command -v node >/dev/null && node tools/release-check.js || echo "warning: release-check failed (see above): fix before pushing"
 tar cf - $EXCL -C tv . | ssh $SSHO "$TV_TARGET" 'mkdir -p /media/developer/tv-debloat && tar xf - -C /media/developer/tv-debloat 2>/dev/null; cd /media/developer/tv-debloat && chown -R root:root . ; chmod -R go-w . ; chmod 755 *.sh zz-debloat launcher launcher/photos launcher/photos/thumbs blocklists 2>/dev/null; mkdir -p state/crops; for f in launcher/photos/crops/*.json; do [ -f "$f" ] || continue; b=${f##*/}; p=launcher/photos/${b%.json}.jpg; d=state/crops/$b; if [ ! -e "$d" ] || [ "$p" -nt "$d" ]; then cp "$f" "$d"; fi; done; rm -rf launcher/photos/crops; echo "deployed; world-writable items: $(find . -perm -002 | wc -l)"'

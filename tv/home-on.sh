@@ -55,5 +55,7 @@ fi
     [ $((tick % 180)) = 0 ] && ( sh "$D/blocklist.sh" maybe-update >/dev/null 2>&1 ) </dev/null >/dev/null 2>&1 &
     # app updates: a quiet background check once after each start and then every N hours (Settings -> App updates; appupdate.sh due)
     [ "$(sh "$D/appupdate.sh" due 2>/dev/null)" = yes ] && ( sh "$D/appupdate.sh" check >/dev/null 2>&1 ) </dev/null >/dev/null 2>&1 &
+    # software updates of this project (Settings -> Software updates): a quiet check after each start and then every N hours; in "auto" mode it installs when the TV is idle
+    [ "$(sh "$D/selfupdate.sh" due 2>/dev/null)" = yes ] && ( setsid sh "$D/selfupdate.sh" auto >/dev/null 2>&1 ) </dev/null >/dev/null 2>&1 &
   done ) </dev/null >/dev/null 2>&1 &
 exit 0

@@ -60,6 +60,14 @@ var logN = 0;
 function dlog(m){ if (MOCK || logN++ > 200) return; try { xhr('POST', API + '/api/log', String(m), noop, 3000); } catch(e){} }
 window.onerror = function(m, u, l){ dlog('JSERR ' + m + ' @' + l); };
 function toast(m){ var t = $('toast'); t.textContent = m; t.className = 'on'; clearTimeout(toast.h); toast.h = setTimeout(function(){ t.className = ''; }, 3200); }
+// a note on Home when a newer version of this project is on GitHub (selfupdate.sh keeps the facts; this only reads them) and the result of the last install
+function updPoll(){
+  api('/api/update', function(err, j){
+    var p = $('updpill'); if (err || !j) return;
+    if (j.resultKind && !document.hidden) { toast(j.result || ''); api('/api/update/conf?k=ack&v=1', noop); }
+    if (j.available && !j.busy) { p.innerHTML = 'Update <b></b> is ready &nbsp;·&nbsp; Settings › Software updates'; p.querySelector('b').textContent = j.available; p.className = 'on'; } else p.className = '';
+  }, 8000);
+}
 // held keys repeat quickly: the longer a key is held the bigger the step (sliders, framing editor)
 var lastKey = 0, lastKeyAt = 0, keyRun = 0;
 function boost(k){ var n = Date.now(); if (k === lastKey && n - lastKeyAt < 160) keyRun++; else keyRun = 0; lastKey = k; lastKeyAt = n; return keyRun < 4 ? 1 : keyRun < 12 ? 3 : 6; }
@@ -667,6 +675,32 @@ cats = [
     });
     if (!list.length) out.push(inf('Services', 'unavailable'));
     return out; }},
+  {id: 'swupd', name: 'Software updates', icon: 'update', title: 'Software updates', desc: 'Keeps this Home screen and the cleanup current from the project on GitHub. Every install makes a safety copy first, and if the new version does not start the old one comes back by itself.', info: '/api/update', build: function(){
+    var self = this, j = this.data || {}, av = j.available, rows = [];
+    function again(ms){ setTimeout(function(){ if (settingsOn && cats[catIdx].id === 'swupd') renderCat(true); }, ms); }
+    function watch(n){ if (n <= 0) return; setTimeout(function(){ if (!(settingsOn && cats[catIdx].id === 'swupd')) return; api('/api/update', function(err, d){ if (d) { self.data = d; renderCat(false); } watch(n - 1); }, 5000); }, 4000); }
+    if (j.busy) rows.push(inf('Working on it', j.status || '…', 'Home restarts for a few seconds when the new version is in.'));
+    if (j.resultKind) rows.push(inf(j.resultKind === 'ok' ? 'Last update' : 'Last update did not work', j.result || '', 'Choose “Dismiss” below to clear this message.'));
+    rows.push(head('Version'));
+    rows.push(inf('Installed', j.installed || '–'));
+    rows.push(inf('Newest on GitHub', av ? av + '    ·  update available' : (j.error ? 'could not check' : 'you have the newest'), j.error || ''));
+    rows.push(inf('Last check', function(){ var a = j.lastAgoSec; return a === null || a === undefined ? 'not since the TV started' : a < 90 ? 'just now' : a < 5400 ? Math.round(a / 60) + ' min ago' : a < 172800 ? Math.round(a / 3600) + ' h ago' : Math.round(a / 86400) + ' days ago'; }));
+    if (av) rows.push(act('Install ' + av + ' now', 'Downloads it, makes a safety copy, installs it and restarts Home (about 20 seconds). If anything goes wrong the old version is put back.', function(){ if (j.busy) return; toast('Installing ' + av + '…'); api('/api/update/apply', function(err){ if (err) { toast('Could not start the update'); return; } j.busy = true; j.status = 'starting'; renderCat(false); watch(15); }, 8000); }));
+    rows.push(act('Check for updates now', 'Looks at GitHub right away', function(){ toast('Checking…'); api('/api/update/check', function(err, r){ toast((r && r.msg) || 'Could not reach the TV'); again(800); }, 50000); }));
+    if (j.resultKind) rows.push(act('Dismiss', 'Clears the message above', function(){ api('/api/update/conf?k=ack&v=1', function(){ again(300); }); }));
+    rows.push(head('Automatic checks'));
+    rows.push(chc('When an update is found', 'Tell me: a note appears on Home and you choose when to install. Install by itself: it waits for a quiet moment (screensaver on) and installs. Never: no automatic look at GitHub.', [['notify', 'Tell me'], ['auto', 'Install by itself'], ['off', 'Never check']], function(){ return self.data && self.data.mode || 'notify'; }, function(v){ self.data = self.data || {}; self.data.mode = v; api('/api/update/conf?k=mode&v=' + v, noop); }));
+    rows.push(tgl('Check when the TV starts', 'A quiet look at GitHub two minutes after Home is up.', function(){ return (self.data && self.data.startup) !== 'off'; }, function(b){ self.data = self.data || {}; self.data.startup = b ? 'on' : 'off'; api('/api/update/conf?k=startup&v=' + (b ? 'on' : 'off'), noop); }));
+    rows.push(chc('Then check every', 'While the TV stays on or in Quick Start standby', [[6, '6 hours'], [12, '12 hours'], [24, '1 day'], [72, '3 days'], [168, '1 week']], function(){ return self.data && self.data.every !== undefined ? Number(self.data.every) : 12; }, function(v){ self.data = self.data || {}; self.data.every = v; api('/api/update/conf?k=every&v=' + v, noop); }));
+    var ns = j.notes instanceof Array ? j.notes : [], shown = [];
+    function vnew(a, b){ var x = String(a).split('.'), y = String(b).split('.'), i, p, q; for (i = 0; i < Math.max(x.length, y.length); i++) { p = parseInt(x[i], 10) || 0; q = parseInt(y[i], 10) || 0; if (q !== p) return q > p; } return false; }
+    ns.forEach(function(e){ if (e && e.v && (av ? vnew(j.installed, e.v) : shown.length < 5)) shown.push(e); });
+    rows.push(head(av ? 'What is new in ' + av : 'Recent changes'));
+    shown.forEach(function(e){ rows.push(inf(e.v + '    ' + (e.title || ''), e.date || '', (e.notes instanceof Array ? e.notes.join('   •   ') : ''))); });
+    if (!shown.length) rows.push(inf('Change notes', 'none yet'));
+    if (j.hasBackup) { rows.push(head('If something is wrong')); rows.push(act('Go back to the previous version', 'Puts the safety copy from before the last update back and restarts Home.', function(){ toast('Going back…'); api('/api/update/rollback', function(){ watch(15); }, 8000); })); }
+    rows.push(inf('Source', (j.repo || '') + '  (' + (j.branch || '') + ')', 'Only the TV’s own code is replaced. Your photos, settings and the block lists you made are never touched. LG firmware updates stay blocked.'));
+    return rows; }},
   {id: 'appupd', name: 'App updates', icon: 'update', title: 'App updates', desc: 'The TV updates your apps by itself, so LG never asks “update this app?” before opening one. TV system (firmware) updates are blocked for good.', info: '/api/appupdates', build: function(){
     var self = this, j = this.data || {}, apps = j.apps || [], pend = (j.pending || []).length;
     var rows = [
@@ -997,7 +1031,7 @@ if (INPMODE) {
   document.addEventListener('webOSRelaunch', function(){ if (saverOn) saverStop(); while (mstack.length) { var t = mtop(); if (t === 'settings') closeSettings(); else if (t === 'panel') panelClose(); else if (t === 'qr') qrClose(); else if (t === 'keypad') keypadClose(); else if (t === 'editor') edClose(); else mstack.pop(); } focusItem(1, 0); onShow(); });
   window.addEventListener('resize', function(){ layoutRows(); });
   // the Settings overlay sits on top of Home without hiding it, so Home never gets a "visible" event: pick up what changed when the overlay closes
-  window.addEventListener('focus', function(){ if (document.hidden || saverOn) return; loadSettings(); refreshPhotos(function(ch){ if (ch) { if (!hasBg()) bgApply(true); else if (photos[bgIx]) bgShow(bgIx); } }); });
+  window.addEventListener('focus', function(){ if (document.hidden || saverOn) return; updPoll(); loadSettings(); refreshPhotos(function(ch){ if (ch) { if (!hasBg()) bgApply(true); else if (photos[bgIx]) bgShow(bgIx); } }); });
   setInterval(function(){ if (!document.hidden) tick(); }, 1000);
   setInterval(function(){ if (!document.hidden) wxLoad(false); }, 60000);
   // pick up changes made from the phone page (settings, uploads, framing): cheap local calls every 30 s while Home is visible
@@ -1015,6 +1049,7 @@ if (INPMODE) {
   });
   setTimeout(function(){ api('/api/ready', noop); }, 4000);    // ready even if the app list is slow, so the 30 s Home watchdog only trips when the API is gone
   netLabel(); activity();
+  setTimeout(updPoll, MOCK ? 1200 : 25000); setInterval(function(){ if (!document.hidden && !saverOn) updPoll(); }, 600000);
   if (MOCK && /saver/.test(location.search)) setTimeout(saverStart, 1200);
   if (MOCK && /settings=(\w+)/.test(location.search)) setTimeout(function(){ openSettings(/settings=(\w+)/.exec(location.search)[1]); setArea('pane'); if (/row=(\d+)/.test(location.search)) sFocus(parseInt(/row=(\d+)/.exec(location.search)[1], 10), 0); }, 1500);
   if (MOCK && /rail=1/.test(location.search)) setTimeout(function(){ openSettings(); }, 1500);

@@ -134,6 +134,13 @@ case "$P" in
   /api/appupdates/conf) case "$(qget k)" in startup|every) timeout -t 10 sh "$D/appupdate.sh" conf "$(qget k)" "$(qget v)" </dev/null >/dev/null 2>&1;; esac
                 hdr "200 OK"; timeout -t 10 sh "$D/appupdate.sh" conf </dev/null 2>/dev/null | sed 's/startup=\([a-z]*\) every=\([0-9]*\)/{"startup":"\1","every":\2}/';;
   /api/appupdates/check) m=$(timeout -t 25 sh "$D/appupdate.sh" check </dev/null 2>/dev/null | head -1 | tr -d '"'); hdr "200 OK"; printf '{"msg":"%s"}' "$m";;
+  # software updates of THIS project from its GitHub repo (selfupdate.sh); loopback only, never reachable from the LAN
+  /api/update)  hdr "200 OK"; timeout -t 10 sh "$D/selfupdate.sh" json </dev/null 2>/dev/null || echo '{"installed":"","available":"","notes":[]}';;
+  /api/update/check) m=$(timeout -t 45 sh "$D/selfupdate.sh" check </dev/null 2>/dev/null | head -1 | tr -d '"'); hdr "200 OK"; printf '{"msg":"%s"}' "$m";;
+  /api/update/apply) ( setsid sh "$D/selfupdate.sh" apply </dev/null >/dev/null 2>&1 & ); hdr "200 OK"; echo '{"started":true}';;
+  /api/update/rollback) ( setsid sh "$D/selfupdate.sh" rollback </dev/null >/dev/null 2>&1 & ); hdr "200 OK"; echo '{"started":true}';;
+  /api/update/conf) case "$(qget k)" in mode|every|startup|ack) timeout -t 10 sh "$D/selfupdate.sh" conf "$(qget k)" "$(qget v)" </dev/null >/dev/null 2>&1;; esac
+                hdr "200 OK"; echo '{"ok":true}';;
   /api/backlight) case "$(qget v)" in
                   dim) pct=$(qget pct); timeout -t 15 sh "$D/backlight.sh" dim "$pct" </dev/null >/dev/null 2>&1;;
                   hold) sh "$D/backlight.sh" hold </dev/null >/dev/null 2>&1;;

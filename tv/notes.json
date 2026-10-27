@@ -1,0 +1,12 @@
+[
+  {
+    "v": "2026.10.27.1",
+    "date": "2026-10-27",
+    "title": "Software updates, and Settings keys that survive a restart",
+    "notes": [
+      "New: Settings > Software updates. The TV can look at GitHub for a newer version of this project, show what changed, and install it with a safety copy (it goes back by itself if the new version does not start).",
+      "Fixed: after a restart the Settings, Input and Guide keys could turn back into LG's stock ones and the old LG Home could show up first. The start-up step waited for a Home screen that does not exist yet at that moment.",
+      "Home shows a small note at the top when an update is ready."
+    ]
+  }
+]

@@ -90,6 +90,9 @@ body.hasbg .hbtn.foc{color:#fff}
 #phint{margin-top:1.4rem;font-size:1.2rem;color:var(--dim)}
 #toast{position:fixed;left:50%;bottom:3rem;transform:translateX(-50%);padding:1rem 2rem;border-radius:1rem;background:rgba(255,255,255,.16);font-size:1.4rem;opacity:0;transition:opacity .3s;z-index:90;pointer-events:none;max-width:90%;text-align:center}
 #toast.on{opacity:1}
+#updpill{position:fixed;left:6rem;top:12.4rem;padding:.7rem 1.6rem;border-radius:2rem;background:rgba(255,255,255,.14);font-size:1.25rem;color:#fff;opacity:0;transition:opacity .4s;pointer-events:none;white-space:nowrap;z-index:20}
+#updpill.on{opacity:1}
+#updpill b{font-weight:600}
 /* QR + keypad modals */
 #qrm,#keym{position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(6,8,12,.9);display:none;z-index:70;align-items:center;justify-content:center}
 #qrm.on,#keym.on{display:flex}
@@ -205,6 +208,7 @@ body.mode-settings .gt{width:11.4rem;height:6.5rem;margin-right:.9rem;margin-bot
 <div id="keym"><div id="keybox"><h2 id="ktitle"></h2><div id="kdisp"></div><div id="kpad"></div></div></div>
 <div id="editor"><div id="edstage"></div><div id="ghost"></div><div id="edinfo"></div>
   <div id="edbar"><span class="pill" id="edmode">Move</span><b>&#9664; &#9650; &#9660; &#9654;</b> move the view &nbsp;&middot;&nbsp; <b>OK</b> switch Move / Zoom &nbsp;&middot;&nbsp; <b>Back</b> menu (save, reset, overlay)</div></div>
+<div id="updpill"></div>
 <div id="toast"></div>
 <!--MOCK-->
 <script src="stage.js"></script>
