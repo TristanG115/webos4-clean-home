@@ -50,7 +50,7 @@ So: the TV is slightly short of RAM, swaps constantly at a low rate, and the big
 **P6. App updates: could not be proven to install.** `option.appUpdateMode` is `auto` and the check request is accepted, but Peacock (6.4.202) and Prime Video (4.5.25) stay in `appUpdateService/statusAll` with `status:"Y"` and unchanged versions 90 s after a check, with and without our host blocks. Either `Y` does not mean "update waiting" or the store does not serve this TV. *Next step:* leave it running for a day and compare versions in Settings -> App updates; if still unchanged, capture the store traffic (needs `tcpdump`, not on the TV: run it from a router / PC mirror).
 
 ### 1.4 Things tried that did **not** help (kept as a record)
-`vm.swappiness` 30 (no change), stopping the voice/ThinQ/HomeKit helpers (a few MB each), hiding the pointer with `activateMotionSensor` alone.
+`vm.swappiness` 30 *for app-open latency* (no change; round 8 later showed it does cut swap traffic by about 40 %, see 7.2), stopping the voice/ThinQ/HomeKit helpers (a few MB each), hiding the pointer with `activateMotionSensor` alone.
 
 ## 2. Safety and security review
 
