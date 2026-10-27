@@ -9,7 +9,9 @@ var API = 'http://127.0.0.1:8765';
 var MOCK = window.__MOCK__ || null;
 var MODE = window.__MODE__ || 'home';
 if (MOCK && /mode=settings/.test(location.search)) MODE = 'settings';
-var SETMODE = MODE === 'settings';
+if (MOCK && /mode=inputs/.test(location.search)) MODE = 'inputs';
+var INPMODE = MODE === 'inputs';          // the Inputs overlay: only the Inputs panel (replaces LG's input picker)
+var SETMODE = MODE === 'settings' || INPMODE;   // both overlays share the "no Home behaviour" switches
 var CFG = {
   glow: {'netflix':'#e50914','youtube.leanback.v4':'#ff1f3d','hulu':'#1ce783','com.disney.disneyplus-prod':'#2a5bff','amazon':'#00a8e1',
          'com.apple.appletv':'#9aa3b5','com.wbd.stream':'#5b3dff','com.peacock.tv':'#f5c518','spotify-beehive':'#1db954','com.plutotv.app':'#fff200','com.tubitv.ott.tubi':'#7a2bff'},
@@ -357,7 +359,7 @@ function panelOpen(title, list){
   $('panel').className = 'on'; if (mtop() !== 'panel') mpush('panel'); panelFocus(0);
 }
 function panelFocus(i){ pIdx = Math.max(0, Math.min(pItems.length - 1, i)); pItems.forEach(function(d, k){ d.className = 'pitem' + (k === pIdx ? ' foc' : ''); }); }
-function panelClose(){ if (mtop() === 'panel') mpop('panel'); $('panel').className = ''; }
+function panelClose(){ if (mtop() === 'panel') mpop('panel'); $('panel').className = ''; if (INPMODE) apiPost('/api/settings/close?id=inputs', ''); }      // the Inputs overlay is only its panel: closing it ends the page
 function openInputs(){ panelOpen('Inputs', CFG.inputs.map(function(i){ return [i[1], '', function(){ panelClose(); launch(i[0]); }]; })); }
 function openNet(){
   api('/api/net', function(err, j){
@@ -467,7 +469,7 @@ var ICON = {
 };
 function tgl(label, desc, get, set){ return {type: 'toggle', label: label, desc: desc, get: get, set: set}; }
 // Back-button history options live on the TV (lastapp.sh, state/back.conf); the Remote page's data object holds the current values
-function backOpt(k, v){ var d = cats[catIdx].data = cats[catIdx].data || {}; d.back = d.back || {}; d.back[k] = (k === 'reset') ? v : parseInt(v, 10); api('/api/history?k=' + k + '&n=' + v, function(){ toast('Saved'); }); }
+function backOpt(k, v){ var d = cats[catIdx].data = cats[catIdx].data || {}; d.back = d.back || {}; d.back[k] = (k === 'reset' || k === 'leave') ? v : parseInt(v, 10); api('/api/history?k=' + k + '&n=' + v, function(){ toast('Saved'); }); }
 function chc(label, desc, opts, get, set){ return {type: 'choice', label: label, desc: desc, opts: opts, get: get, set: set}; }
 function sld(label, desc, min, max, step, get, set){ return {type: 'slider', label: label, desc: desc, min: min, max: max, step: step, get: get, set: set}; }
 function inf(label, value, desc){ return {type: 'info', label: label, value: value, desc: desc}; }
@@ -504,6 +506,7 @@ function num(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 cats = [
   {id: 'quick', name: 'Quick settings', icon: 'bolt', title: 'Quick settings', desc: 'The same shortcuts as LG’s quick panel: picture mode, aspect ratio, sound mode, sound out, sleep timer, network, and all settings.', info: '/api/net',
     lg: [['picture', ['pictureMode','aspectRatio']], ['sound', ['soundMode','soundOutput']], ['time', ['sleepTimer']]], build: function(){ var j = this.data || {}, w = j.wired || {}, f = j.wifi || {}; return [
+    chc('Same brightness everywhere', 'LG keeps a separate backlight for every input and app, so dimming one screen leaves the others bright. Pick a value and it is applied on every input and app (also in the dark: choose Lowest at night). Off puts each input back to its own value.', [['off','Off: each input keeps its own'],['5','Lowest'],['25','25 %'],['50','50 %'],['75','75 %'],['100','Full']], function(){ return BRV === null ? 'off' : BRV; }, function(v){ BRV = v; api('/api/brightness?v=' + v, function(){ toast(v === 'off' ? 'Each input has its own brightness again' : 'Same brightness everywhere'); }, 70000); }),
     lgChc('picture', 'pictureMode', 'Picture mode', '', picModes, true),
     lgChc('picture', 'aspectRatio', 'Aspect ratio', '', ASPECTS),
     lgChc('sound', 'soundMode', 'Sound mode', '', SOUNDMODES),
@@ -602,10 +605,12 @@ cats = [
     lg: [['option', ['pointerSpeed','pointerSize','pointerShape','pointerAlignment']], ['other', ['cursorAutoRemover']]], build: function(){ var self = this; return [
     chc('Settings button opens', 'The gear button on the remote', [['ours','This Settings screen'],['lg','LG’s quick panel']], function(){ return (self.data && self.data.gear) || 'ours'; }, function(v){ self.data = self.data || {}; self.data.gear = v; api('/api/gear?v=' + v, function(){ toast(v === 'ours' ? 'The Settings button now opens this screen' : 'The Settings button opens LG’s panel again'); }); }),
     tgl('Back from an app returns to the previous app', 'When an app quits on Back, open the app or input you were in before it. With nothing before it you land on Home, as usual.', function(){ return !(self.data && self.data.chain === 'off'); }, function(b){ self.data = self.data || {}; self.data.chain = b ? 'on' : 'off'; api('/api/backchain?v=' + (b ? 'on' : 'off'), function(){ toast(b ? 'Back now returns to the previous app' : 'Back from an app goes to Home again'); }); }),
+    chc('Leave an app with Back', 'Apps decide what a normal Back press does (Netflix ignores it on its start screen). With this on, holding Back or pressing it twice quickly takes you out of the app: to the previous app, or Home when there is none.', [['both','Hold or press twice'],['hold','Hold Back'],['double','Press twice quickly'],['off','Let the app decide']], function(){ return (self.data && self.data.back && self.data.back.leave) || 'both'; }, function(v){ backOpt('leave', v); }),
     chc('Forget where I was', 'The Back button can take you back to the apps and inputs you used. Choose when that memory is wiped, so the TV feels freshly turned on.', [['never','Never'],['saver','When the screensaver starts'],['saver_standby','Screensaver or TV off']], function(){ return (self.data && self.data.back && self.data.back.reset) || 'saver'; }, function(v){ backOpt('reset', v); }),
     chc('Forget apps I left a while ago', 'Apps and inputs you left longer ago than this are skipped by Back.', [['0','Never'],['5','5 minutes'],['15','15 minutes'],['30','30 minutes'],['60','1 hour'],['240','4 hours']], function(){ return String((self.data && self.data.back && self.data.back.forget) || 0); }, function(v){ backOpt('forget', v); }),
     chc('How many steps Back can go', 'How far back Back can walk through the apps you used.', [['1','1'],['2','2'],['3','3'],['5','5'],['8','8']], function(){ return String((self.data && self.data.back && self.data.back.depth) || 8); }, function(v){ backOpt('depth', v); }),
     chc('Close apps I left on Home after', 'Frees memory so the TV stays quick: a streaming app you left in the background is closed after this time (Netflix alone holds about 125 MB). It starts again when you open it. Music that plays in the background stops too, so this is off by default. LG’s own apps and inputs are never closed.', [['0','Never'],['10','10 minutes'],['30','30 minutes'],['60','1 hour'],['180','3 hours']], function(){ return String((self.data && self.data.back && self.data.back.closeidle) || 0); }, function(v){ backOpt('closeidle', v); }),
+    tgl('Hide the Magic Remote pointer', 'The moment the remote shows its arrow (shake, movement, wheel) the TV hides it again, so it only flickers for a split second. Clicks and buttons keep working.', function(){ return !(self.data && self.data.pointerhide === 'off'); }, function(b){ self.data = self.data || {}; self.data.pointerhide = b ? 'on' : 'off'; api('/api/pointerhide?v=' + (b ? 'on' : 'off'), function(){ toast(b ? 'The pointer is hidden' : 'The pointer behaves like LG’s again'); }); }),
     tgl('Pointer only when I shake the remote', 'Experimental. Asks the Magic Remote to show the arrow only after a shake, not on every movement. Applied again by itself each time the remote wakes up. Press a button on the remote first, then switch this on.', function(){ return !!(self.data && self.data.pointer === 'off'); }, function(b){ self.data = self.data || {}; self.data.pointer = b ? 'off' : 'on'; api('/api/pointer?v=' + (b ? 'off' : 'on'), function(err, j){ toast((j && j.msg) || (err ? 'Could not reach the TV' : 'Done')); }, 25000); }),
     tgl('Hide the pointer on Home and in Settings', 'Asks the browser not to draw an arrow on Home and in Settings. LG draws its own pointer on top, so it may still appear.', function(){ return !!S.ui.hideCursor; }, function(b){ setPath('ui.hideCursor', b); }),
     head('LG pointer options'),
@@ -770,8 +775,11 @@ function setArea(a){ sArea = a; catClass(); if (a === 'pane') { sFocus(0, 0); } 
 function paneSet(on){ paneOpen = on; cls($('settings'), 'open', on); catClass(); }
 // OK on an icon of the rail: unfold that category next to the rail and move into it
 function openPane(){ paneSet(true); sArea = 'pane'; sR = sC = 0; setY = 0; $('setinner').style.transform = ''; catClass(); renderCat(true); }
+var BRV = null;
+function brLoad(){ api('/api/brightness', function(err, j){ if (j && j.brightness) { BRV = j.brightness; if (settingsOn) renderCat(false); } }); }
 function openSettings(id){
   if (settingsOn) return;
+  brLoad();
   settingsOn = true; paneOpen = false; $('settings').className = 'on'; mpush('settings'); clearTimeout(idleT);
   if (!$('setcats').firstChild) renderCats();
   var named = false;
@@ -958,6 +966,7 @@ function netLabel(){ api('/api/net', function(err, j){ if (!j || !j.returnValue)
 var appsAt = 0;
 function onShow(){
   tick(); activity();
+  api('/api/saver/take', function(err, j){ if (j && j.take && S.saver.on) saverStart(); });      // LG's own screensaver was replaced by ours (saver-take.sh)
   if (Date.now() - appsAt > 60000) { appsAt = Date.now(); loadApps(function(ok){ if (ok) focusItem(Math.min(1, rows.length - 1), 0); }); }
   wxLoad(false); loadSettings(); refreshPhotos(function(ch){ if (ch) bgApply(true); });
   if (photos.length && S.bg.on && Date.now() - bgAt > Math.max(1, S.bg.everyMin) * 60000) bgShow(bgIx + 1);
@@ -965,7 +974,13 @@ function onShow(){
 }
 function onHide(){ clearTimeout(idleT); if (saverOn) saverStop(); if (mtop() === 'panel') panelClose(); }
 
-if (SETMODE) {
+if (INPMODE) {
+  /* ---- Inputs overlay: only the Inputs list (opened by the Input / Guide keys); a second press of the key (webOSRelaunch) closes it ---- */
+  document.documentElement.className = 'mode-settings'; cls(document.body, 'mode-settings', true);
+  loadSettings(function(){ openInputs(); });
+  var inpAt = Date.now(); document.addEventListener('webOSRelaunch', function(){ if (Date.now() - inpAt > 1500) panelClose(); });
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){ api('/api/qs?m=inputs-painted', noop); }); });
+} else if (SETMODE) {
   /* ---- Settings overlay: only the Settings screen; Back at the top level closes the page ---- */
   document.documentElement.className = 'mode-settings'; cls(document.body, 'mode-settings', true);
   tick();

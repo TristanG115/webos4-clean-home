@@ -33,12 +33,18 @@ build() { # generate the patched files from the originals; prints nothing on suc
   for f in appLaunch.head.js systemUi.head.js; do [ -s "$SN/$f" ] || return 1; done
   [ -f "$RAMDIR/.complete" ] || ram_sync >/dev/null 2>&1
   DESC=$(settings_appdesc) || return 1; [ -n "$DESC" ] || return 1; export DESC
+  DESC_INPUTS=$(inputs_appdesc) || return 1; [ -n "$DESC_INPUTS" ] || return 1; export DESC_INPUTS
   awk -v HEAD="$SN/appLaunch.head.js" '
-    function emit(file,   l, i) { while ((getline l < file) > 0) { i = index(l, "__APPDESC__"); if (i) l = substr(l, 1, i - 1) ENVIRON["DESC"] substr(l, i + 11); print l } close(file) }
+    function emit(file,   l, i) { while ((getline l < file) > 0) { i = index(l, "__APPDESC_INPUTS__"); if (i) l = substr(l, 1, i - 1) ENVIRON["DESC_INPUTS"] substr(l, i + 18); i = index(l, "__APPDESC__"); if (i) l = substr(l, 1, i - 1) ENVIRON["DESC"] substr(l, i + 11); print l } close(file) }
+    # LG opens its input picker with a two-line call (systemUIManager /launch + the quickinputpicker JSON): swap both lines for ours; the Guide / Live Menu launches too
+    /^[ \t]*lunaCall\.send\(.com\.webos\.service\.systemUIManager., .\/launch.,[ \t]*$/ { held = $0; next }
+    held != "" { if ($0 ~ /"appId": "com\.webos\.app\.quickinputpicker"\}\)\);/) { print "                tvdOpenOverlay();   // tv-debloat: our Inputs panel instead of LG'"'"'s input picker"; q++ } else { print held; print } held = ""; next }
+    /applicationManager\.launch\("com\.webos\.app\.livemenu", JSON\.stringify\(\{"activateType": "channels"\}\)\);/ { print "                    tvdOpenOverlay();   // tv-debloat: Live Menu key -> our Inputs panel"; g++; next }
+    /applicationManager\.launch\(guideAction\.id\);/ { print "                        tvdOpenOverlay();   // tv-debloat: Guide key -> our Inputs panel"; g++; next }
     /^function openSettings\(params\) \{/ { emit(HEAD); print; print "    if (tvdOpenSettings(params)) return;   // tv-debloat"; print "    return;   // tv-debloat: our Settings overlay replaces LG'"'"'s quick panel"; n++; next }
     /lunaCall\.send\(.com\.webos\.service\.systemUIManager., .\/launch., JSON\.stringify\(\{"appId": "com\.webos\.app\.quicksettings", "reason": "preload"\}\)\);/ { print "    // tv-debloat: LG'"'"'s quick panel is never shown, so it is not pre-loaded either (saves its QML tree in RAM)"; p++; next }
     { print }
-    END { if (n != 1 || p != 1) exit 3 }' $KF/appLaunch.js > $PD/appLaunch.js || return 1
+    END { if (n != 1 || p != 1 || q != 2 || g != 2) exit 3 }' $KF/appLaunch.js > $PD/appLaunch.js || return 1
   awk -v HEAD="$SN/systemUi.head.js" '
     function emit(file,   l) { while ((getline l < file) > 0) print l; close(file) }
     /^function init\(\) \{/ { emit(HEAD); print; print "    try { tvdInit(); } catch (e) {}   // tv-debloat: report in"; n++; next }

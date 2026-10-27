@@ -144,6 +144,10 @@ case "$P" in
                 hdr "200 OK"; sh "$D/lastapp.sh" conf;;
   /api/backchain) case "$(qget v)" in off) touch "$STATE/backchain-off";; on) rm -f "$STATE/backchain-off";; esac
                 hdr "200 OK"; [ -e "$STATE/backchain-off" ] && echo '{"chain":"off"}' || echo '{"chain":"on"}';;
+  /api/brightness) v=$(qget v); [ -n "$v" ] && timeout -t 60 sh "$D/brightness.sh" set "$v" </dev/null >/dev/null 2>&1
+                hdr "200 OK"; printf '{"brightness":"%s"}' "$(sh "$D/brightness.sh" status)";;
+  /api/pointerhide) case "$(qget v)" in on) rm -f "$STATE/pointerhide-off"; ( setsid sh "$D/pointerhide.sh" start </dev/null >/dev/null 2>&1 & );; off) touch "$STATE/pointerhide-off"; sh "$D/pointerhide.sh" stop >/dev/null 2>&1;; esac
+                hdr "200 OK"; printf '{"pointerhide":"%s"}' "$([ -e "$STATE/pointerhide-off" ] && echo off || echo on)";;
   /api/pointer) case "$(qget v)" in off|on) m=$(timeout -t 20 sh "$D/pointer.sh" "$(qget v)" </dev/null 2>/dev/null | head -1 | tr -d '"\\');; *) m="";; esac
                 hdr "200 OK"; printf '{"pointer":"%s","msg":"%s"}' "$(sh "$D/pointer.sh" status)" "$m";;
   /api/photos)  hdr "200 OK"; photos_json;;
@@ -173,9 +177,11 @@ case "$P" in
   /api/lg/open) # LG's own (legacy) Settings app, for what ours does not cover (Wi-Fi join, accounts). The hook lets it through for 25 s.
                 echo $(( $(cut -d. -f1 /proc/uptime) + 25 )) > "$STATE/lgsettings.allow"
                 hdr "200 OK"; LW=10000 lun luna://com.webos.applicationManager/launch '{"id":"com.palm.app.settings","params":{}}';;
-  /api/settings/close) hdr "200 OK"; echo '{"ok":true}'; ( usleep 300000; sh "$D/settings-open.sh" close ) </dev/null >/dev/null 2>&1 &
+  /api/settings/close) hdr "200 OK"; echo '{"ok":true}'; ( usleep 300000; sh "$D/settings-open.sh" close "$(qget id)" ) </dev/null >/dev/null 2>&1 &
                 ;;
-  /api/settings/launch) hdr "200 OK"; ( sh "$D/settings-open.sh" launch </dev/null >/dev/null 2>&1 & ); echo '{"ok":true}';;
+  /api/saver/take) # the page was shown: did saver-take.sh ask for our screensaver in the last minute?
+                hdr "200 OK"; if [ -e /tmp/saver-now ] && [ -z "$(find /tmp/saver-now -mmin +1 2>/dev/null)" ]; then rm -f /tmp/saver-now; echo '{"take":true}'; else echo '{"take":false}'; fi;;
+  /api/settings/launch) hdr "200 OK"; ( sh "$D/settings-open.sh" launch "$(qget id)" </dev/null >/dev/null 2>&1 & ); echo '{"ok":true}';;
   /api/qs)      # the patched compositor reports in (qspatch.sh): e=claim = "I opened / closed Settings myself", e=fail = it could not, anything else is just logged
                 m=$(qget m | sed 's/%20/ /g; s/%3D/=/g' | tr -c 'A-Za-z0-9 _.:=,-' '?' | cut -c1-120)
                 case "$(qget e)" in claim) up > /tmp/qs-claim;; loaded) touch "/tmp/qs-loaded-$(qget m | tr -cd 'A-Za-z')"; q=$(qget q | sed 's/%20/ /g; s/%3D/=/g' | tr -c 'A-Za-z0-9 _.:=,-' '?' | cut -c1-120); [ -n "$q" ] && log "qs: $q";; fail) log "qs: compositor launch failed: $m";; *) [ -n "$m" ] && log "qs: $m";; esac
@@ -186,7 +192,7 @@ case "$P" in
                 hdr "200 OK"; echo '{"ok":true}';;
   /api/settings/open)hdr "200 OK"; sh "$D/settings-open.sh" open >/dev/null 2>&1; echo '{"ok":true}';;
   /api/gear)    if [ "$(qget v)" = lg ]; then touch "$STATE/gear-lg"; elif [ "$(qget v)" = ours ]; then rm -f "$STATE/gear-lg"; fi
-                hdr "200 OK"; printf '{"gear":"%s","pointer":"%s","chain":"%s","back":%s}' "$([ -e "$STATE/gear-lg" ] && echo lg || echo ours)" "$([ -e "$STATE/pointer-off" ] && echo off || echo on)" "$([ -e "$STATE/backchain-off" ] && echo off || echo on)" "$(sh "$D/lastapp.sh" conf)";;
+                hdr "200 OK"; printf '{"gear":"%s","pointer":"%s","chain":"%s","pointerhide":"%s","back":%s}' "$([ -e "$STATE/gear-lg" ] && echo lg || echo ours)" "$([ -e "$STATE/pointer-off" ] && echo off || echo on)" "$([ -e "$STATE/backchain-off" ] && echo off || echo on)" "$([ -e "$STATE/pointerhide-off" ] && echo off || echo on)" "$(sh "$D/lastapp.sh" conf)";;
   /api/svc)     hdr "200 OK"; svc_json;;
   /api/svc/set) svc_set;;
   /api/guard)   hdr "200 OK"; timeout -t 60 sh "$D/debloat.sh" sweep </dev/null >/dev/null 2>&1; echo '{"ok":true}';;

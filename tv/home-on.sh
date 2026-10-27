@@ -40,6 +40,7 @@ fi
 ( setsid sh "$D/lastapp.sh" start </dev/null >/dev/null 2>&1 & )
 ( setsid sh "$D/pointer.sh" watch </dev/null >/dev/null 2>&1 & )
 ( setsid sh "$D/backchain.sh" start </dev/null >/dev/null 2>&1 & )
+( setsid sh "$D/pointerhide.sh" start </dev/null >/dev/null 2>&1 & )
 # watchdog: API self-heal every 20 s; every 5 min re-apply whatever LG restarted (debloat.sh sweep); every hour refresh the ad-block lists
 ( bad=0; tick=0
   while is_mounted $HOME_EXE; do
@@ -49,7 +50,7 @@ fi
     if api_ok; then bad=0; else api_start; sleep 1; if api_ok; then bad=0; else bad=$((bad+1)); fi; fi
     [ $bad -ge 3 ] && { log "home-on: watchdog -> LG Home"; sh "$D/home-off.sh" temp; break; }
     if [ $((tick % 15)) = 0 ] && mkdir /tmp/tvd-sweep.lock 2>/dev/null; then
-      ( sh "$D/debloat.sh" sweep >/dev/null 2>&1; ( setsid sh "$D/settings-hook.sh" start </dev/null >/dev/null 2>&1 & ); ( setsid sh "$D/lastapp.sh" start </dev/null >/dev/null 2>&1 & ); ( setsid sh "$D/pointer.sh" watch </dev/null >/dev/null 2>&1 & ); ( setsid sh "$D/backchain.sh" start </dev/null >/dev/null 2>&1 & ); rmdir /tmp/tvd-sweep.lock ) </dev/null >/dev/null 2>&1 &
+      ( sh "$D/debloat.sh" sweep >/dev/null 2>&1; ( setsid sh "$D/settings-hook.sh" start </dev/null >/dev/null 2>&1 & ); ( setsid sh "$D/lastapp.sh" start </dev/null >/dev/null 2>&1 & ); ( setsid sh "$D/pointer.sh" watch </dev/null >/dev/null 2>&1 & ); ( setsid sh "$D/backchain.sh" start </dev/null >/dev/null 2>&1 & ); ( setsid sh "$D/pointerhide.sh" start </dev/null >/dev/null 2>&1 & ); rmdir /tmp/tvd-sweep.lock ) </dev/null >/dev/null 2>&1 &
     fi
     [ $((tick % 180)) = 0 ] && ( sh "$D/blocklist.sh" maybe-update >/dev/null 2>&1 ) </dev/null >/dev/null 2>&1 &
     # app updates: a quiet background check once after each start and then every N hours (Settings -> App updates; appupdate.sh due)

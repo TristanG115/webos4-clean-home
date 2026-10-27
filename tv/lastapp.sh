@@ -10,6 +10,7 @@
 #   reset   never | saver | saver_standby   forget the history when the screensaver starts (ours or LG's) / also when the TV goes to standby
 #   forget  0 | N                           forget apps you left more than N minutes ago (0 = never)
 #   depth   1..8                            how many steps back Back can go
+#   leave   both | hold | double | off      leave an app with Back held / pressed twice quickly (backchain.sh, keywatch.py)
 #   closeidle 0 | N                         close a streaming app that has been sitting in the background for N minutes (0 = never; frees its memory, about 125 MB for
 #                                           Netflix; it also stops music that plays in the background, so it is off by default). LG's own apps, inputs and Home are never closed.
 . /media/developer/tv-debloat/common.sh
@@ -35,8 +36,9 @@ case ${1:-start} in
       reset) case $3 in never|saver|saver_standby) ;; *) exit 1;; esac;;
       forget) case $3 in ''|*[!0-9]*) exit 1;; esac; [ "$3" -le 1440 ] || exit 1;;
       depth) case $3 in 1|2|3|4|5|6|7|8) ;; *) exit 1;; esac;;
+      leave) case $3 in both|hold|double|off) ;; *) exit 1;; esac;;
       closeidle) case $3 in ''|*[!0-9]*) exit 1;; esac; [ "$3" -le 1440 ] || exit 1;;
-      '') printf '{"reset":"%s","forget":%s,"depth":%s,"closeidle":%s}\n' "$(bconf reset saver)" "$(bconf forget 0)" "$(bconf depth 8)" "$(bconf closeidle 0)"; exit 0;;
+      '') printf '{"reset":"%s","forget":%s,"depth":%s,"closeidle":%s,"leave":"%s"}\n' "$(bconf reset saver)" "$(bconf forget 0)" "$(bconf depth 8)" "$(bconf closeidle 0)" "$(bconf leave both)"; exit 0;;
       *) exit 1;;
     esac
     { grep -v "^$2=" $BC 2>/dev/null; echo "$2=$3"; } > $BC.tmp && mv $BC.tmp $BC; exit 0;;
@@ -83,6 +85,7 @@ prev=""
 while :; do
   luna-send -i luna://com.webos.applicationManager/getForegroundAppInfo '{"subscribe":true}' </dev/null 2>/dev/null | while read -r l; do
     id=$(printf %s "$l" | sed -n 's/.*"appId" *: *"\([^"]*\)".*/\1/p')
+    [ -s "$STATE/brightness" ] && ( sleep 1; sh "$D/brightness.sh" apply ) </dev/null >/dev/null 2>&1 &      # one brightness on every input / app (brightness.sh)
     case "$id" in com.webos.app.screensaver*) sh "$0" why saver; continue;; esac     # LG's own screensaver
     # remember when an app went to the background (option "closeidle"): the previous foreground app left just now, the new one is back in front
     if [ -n "$id" ] && [ "$id" != "$prev" ]; then

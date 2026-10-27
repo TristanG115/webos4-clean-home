@@ -17,6 +17,7 @@ lun() { luna-send -n 1 -w "${LW:-6000}" "$@" </dev/null 2>/dev/null; }
 is_mounted() { grep -q " $1 " /proc/mounts; }
 HOME_ID=com.webos.app.fullhome
 HOME_EXE=/usr/bin/com.webos.app.fullhome
+INP_ID=tv.debloat.inputs            # our Inputs overlay (replaces LG's input picker, opened by the compositor patch)
 SET_ID=tv.debloat.settings          # our Settings overlay (a second WAM page; the remote's Settings key opens it)
 RAMDIR=/tmp/tv-launcher             # tmpfs copy of the launcher code (photos stay on flash and are bind-mounted in)
 
@@ -31,12 +32,16 @@ api_ok() { curl -s -m 3 -o /dev/null http://127.0.0.1:8765/api/ping; }
 # Photos stay on flash and are bind-mounted into the RAM tree (a symlink would leave the page's own folder).
 # launcher_dir prints the folder WAM should load: the RAM copy when it is complete, the flash copy otherwise.
 launcher_dir() { if [ -f "$RAMDIR/index.html" ] && [ -f "$RAMDIR/app.js" ] && [ -f "$RAMDIR/.complete" ]; then echo "$RAMDIR"; else echo "$D/launcher"; fi; }
+mkhtml() { # <mode> <title> <out>
+  sed "s#<script src=\"app.js\">#<script>window.__MODE__=\"$1\"</script><script src=\"app.js\">#; s#<title>Home</title>#<title>$2</title>#" "$D/launcher/index.html" > "$3"
+}
 ram_sync() {
   [ -f "$D/launcher/index.html" ] || return 1
   rm -f "$RAMDIR/.complete"; mkdir -p "$RAMDIR/photos" || return 1
   for f in index.html app.js qr.js stage.js appinfo.json; do cp "$D/launcher/$f" "$RAMDIR/$f.new" && mv "$RAMDIR/$f.new" "$RAMDIR/$f" || return 1; done
-  # the Settings overlay is the same page started in settings mode (the mode is chosen by the file name: see MODE in app.js)
-  sed 's#<script src="app.js">#<script>window.__MODE__="settings"</script><script src="app.js">#; s#<title>Home</title>#<title>Settings</title>#' "$D/launcher/index.html" > "$RAMDIR/settings.html" || return 1
+  # the overlays (Settings, Inputs) are the same page started in another mode (the mode is chosen by the file name: see MODE in app.js)
+  mkhtml settings Settings "$RAMDIR/settings.html" || return 1
+  mkhtml inputs Inputs "$RAMDIR/inputs.html" || return 1
   is_mounted "$RAMDIR/photos" || mount --bind "$D/launcher/photos" "$RAMDIR/photos" || return 1
   chmod -R go-w "$RAMDIR"; touch "$RAMDIR/.complete"; return 0
 }
@@ -53,17 +58,19 @@ app_desc() { # <appinfo.json> <folder>
 # settings.html = index.html started in settings mode. ram_sync writes it into the RAM copy; this makes sure the flash copy has one
 # too (used when the RAM copy is not available).
 ensure_settings_html() {
-  f=$D/launcher/settings.html
-  if [ ! -s "$f" ] || [ "$D/launcher/index.html" -nt "$f" ]; then
-    sed 's#<script src="app.js">#<script>window.__MODE__="settings"</script><script src="app.js">#; s#<title>Home</title>#<title>Settings</title>#' "$D/launcher/index.html" > "$f.new" && mv "$f.new" "$f"
-  fi
+  for m in settings:Settings inputs:Inputs; do
+    f=$D/launcher/${m%%:*}.html
+    if [ ! -s "$f" ] || [ "$D/launcher/index.html" -nt "$f" ]; then mkhtml "${m%%:*}" "${m#*:}" "$f.new" && mv "$f.new" "$f"; fi
+  done
 }
 # the WAM appDesc of our Settings overlay as ONE JSON line (settings-open.sh sends it from the shell, qspatch.sh bakes it into the compositor patch)
-settings_appdesc() {
+overlay_appdesc() { # <app id> <html file> <title>
   DIR=$(launcher_dir); [ "$DIR" = "$D/launcher" ] && ensure_settings_html
-  printf '{"id":"%s","version":"1.0.0","vendor":"tv-debloat","type":"web","main":"settings.html","title":"Settings","visible":false,"transparent":true,"bgColor":"#00000000","disableBackHistoryAPI":true,"lockable":false,"supportQuickStart":false,"defaultWindowType":"overlay","trustLevel":"trusted","folderPath":"%s"' "$SET_ID" "$DIR"
+  printf '{"id":"%s","version":"1.0.0","vendor":"tv-debloat","type":"web","main":"%s","title":"%s","visible":false,"transparent":true,"bgColor":"#00000000","disableBackHistoryAPI":true,"lockable":false,"supportQuickStart":false,"defaultWindowType":"overlay","trustLevel":"trusted","folderPath":"%s"' "$1" "$2" "$3" "$DIR"
   [ -e "$D/DEBUG" ] && printf ',"inspectable":true'
   printf '}'
 }
+settings_appdesc() { overlay_appdesc "$SET_ID" settings.html Settings; }
+inputs_appdesc() { overlay_appdesc "$INP_ID" inputs.html Inputs; }
 # lgsettings.allow holds the uptime (seconds) until which LG's own Settings app may be opened without being redirected to ours
 lg_settings_allowed() { a=$(cat "$STATE/lgsettings.allow" 2>/dev/null); [ -n "$a" ] && [ "$(cut -d. -f1 /proc/uptime)" -lt "$a" ]; }

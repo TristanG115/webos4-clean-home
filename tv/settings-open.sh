@@ -4,13 +4,15 @@
 . /media/developer/tv-debloat/common.sh
 is_open() { lun luna://com.webos.applicationManager/getForegroundAppInfo '{}' | grep -q "\"appId\": *\"$SET_ID\"" ||
             lun luna://com.webos.applicationManager/getForegroundAppInfo '{"extraInfo":true}' | grep -q "\"appId\": *\"$SET_ID\""; }
+# the second argument picks the overlay: nothing = Settings, "inputs" = our Inputs panel
+WHICH=settings; [ "$2" = inputs ] && WHICH=inputs
 do_open() {
-  APP=$(settings_appdesc); DIR=$(launcher_dir)
-  r=$(LW=8000 lun luna://com.palm.webappmanager/launchApp "{\"appDesc\":$APP,\"parameters\":{},\"launchingAppId\":\"\",\"launchingProcId\":\"\",\"instanceId\":\"tv-debloat-settings\"}" | tr -d '\n')
-  case $r in *'"returnValue": *true'*|*true*) log "settings overlay opened ($DIR)";; *) log "settings overlay refused: $(echo "$r" | cut -c1-160)";; esac
+  if [ $WHICH = inputs ]; then APP=$(inputs_appdesc); else APP=$(settings_appdesc); fi; DIR=$(launcher_dir)
+  r=$(LW=8000 lun luna://com.palm.webappmanager/launchApp "{\"appDesc\":$APP,\"parameters\":{},\"launchingAppId\":\"\",\"launchingProcId\":\"\",\"instanceId\":\"tv-debloat-$WHICH\"}" | tr -d '\n')
+  case $r in *'"returnValue": *true'*|*true*) log "$WHICH overlay opened ($DIR)";; *) log "$WHICH overlay refused: $(echo "$r" | cut -c1-160)";; esac
   echo "$r"
 }
-do_close() { lun luna://com.palm.webappmanager/killApp "{\"appId\":\"$SET_ID\"}" >/dev/null; }
+do_close() { if [ $WHICH = inputs ]; then i=$INP_ID; else i=$SET_ID; fi; lun luna://com.palm.webappmanager/killApp "{\"appId\":\"$i\"}" >/dev/null; }
 case ${1:-toggle} in
   launch) do_open >/dev/null;;                       # no "is it open already" check: the hook tracks that itself (fast path)
   open)   is_open || do_open;;

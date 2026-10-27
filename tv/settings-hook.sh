@@ -25,9 +25,11 @@ tail -F "$LOG" 2>/dev/null | awk '
   /NL_VSC/ && /com.webos.app.quicksettings/ && /"visible":true/ { print "QS"; fflush() }
   /NL_VSC/ && /tv.debloat.settings/ && /"visible":true/ { print "SON"; fflush() }
   /NL_VSC/ && /tv.debloat.settings/ && /"visible":false/ { print "SOFF"; fflush() }
-  /NL_APP_LAUNCH_BEGIN/ && /"app_id":"com.palm.app.settings"/ { print "LGS"; fflush() }' | while read -r ev; do
+  /NL_APP_LAUNCH_BEGIN/ && /"app_id":"com.palm.app.settings"/ { print "LGS"; fflush() }
+  /NL_VSC/ && /com.webos.app.screensaver/ && /"visible":true/ { print "LGSAVER"; fflush() }' | while read -r ev; do
   case $ev in SON) touch /tmp/set-vis; continue;; SOFF) rm -f /tmp/set-vis; continue;; esac
   [ -e "$D/DISABLE" ] && continue
+  [ "$ev" = LGSAVER ] && { api_ok && sh "$D/saver-take.sh" >/dev/null 2>&1 & continue; }      # LG's screensaver came up: ours replaces it
   [ -e "$STATE/gear-lg" ] && [ "$ev" != LGS ] && continue
   now=$(cut -d. -f1 /proc/uptime)
   claim=$(cat /tmp/gear-claim 2>/dev/null); [ -n "$claim" ] || claim=-99

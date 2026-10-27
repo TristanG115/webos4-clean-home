@@ -8,6 +8,7 @@ sh "$D/lastapp.sh" stop >/dev/null 2>&1
 sh "$D/backlight.sh" restore >/dev/null 2>&1
 sh "$D/backchain.sh" stop >/dev/null 2>&1
 sh "$D/pointer.sh" stop >/dev/null 2>&1
+sh "$D/pointerhide.sh" stop >/dev/null 2>&1
 sh "$D/settings-open.sh" close >/dev/null 2>&1
 # LG's Home may need the ad service the stub replaces, so un-stub it first
 sh "$D/debloat.sh" undo admanager >/dev/null 2>&1
