@@ -94,7 +94,7 @@ What the measurements say:
 * **The TV is memory-limited, not CPU-limited.** 964 MB RAM, 180-285 MB available, 220-300 MB swapped with a constant trickle of swap I/O while idle, CPU 84-94 % idle. LG's web runtime (browser + renderer for Home) is about 260 MB; the HDMI input app that LG keeps resident is 46 MB.
 * **The load average (about 31) is meaningless here**: 29 kernel threads sit in uninterruptible sleep forever and each counts as one. Ignore it.
 * **Luna calls cost 15 ms idle but up to about 1 s under swap**; the Settings-key path was restructured to avoid round trips.
-* Caveats: app-open gains are modest and noisy (about +-0.3 s). The clear wins are cold Home (7x), less memory for Home, less swap, and zero ad traffic. `vm.swappiness` 20 (item *Swap less*) does not make apps open faster, but it cuts swap traffic to the flash by about 40 % for the same use (`results/r8-swappiness.txt`; the earlier `results/exp-swp30.txt` only looked at launch times). Dropped because they did not help: stopping the voice/ThinQ helpers (a few MB each).
+* Caveats: app-open gains are modest and noisy (about +-0.3 s). The clear wins are cold Home (7x), less memory for Home, less swap, and zero ad traffic. `vm.swappiness` 20 (item *Swap less*) does not make apps open faster, but it cuts swapping (compression work in RAM; LG's swap is mostly zram) by about 40 % for the same use (`results/r8-swappiness.txt`; the earlier `results/exp-swp30.txt` only looked at launch times). Dropped because they did not help: stopping the voice/ThinQ helpers (a few MB each).
 
 ## Audit findings
 Full report: **[docs/AUDIT.md](docs/AUDIT.md)**. The short version:

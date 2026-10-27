@@ -180,7 +180,7 @@ Verified: apply, undo and re-apply through the Settings API (each about 10 s, UI
 
 | What | Where / command | Undo |
 |---|---|---|
-| `vm.swappiness` 100 -> 20 (the TV swaps to an encrypted eMMC partition; it had written about 3.7 GB there in 4.5 h of use) | `debloat.sh` item `vmtune` (services.tsv, group "Memory & speed", default on), value in `VM_SWAPPINESS`, original kept in `state/vm.orig`, re-applied by the sweep; `/proc/sys` only | Settings -> Services & privacy switch, `sh debloat.sh undo vmtune`, `./revert.sh`, or a reboot (stock) |
+| `vm.swappiness` 100 -> 20 (LG's swap `eswap` is a dm-linear device: the first 600 MB are **zram = compressed RAM**, only the last ~100 MB are eMMC; the first version of this note wrongly claimed 3.7 GB had been written to flash) | `debloat.sh` item `vmtune` (services.tsv, group "Memory & speed", default on), value in `VM_SWAPPINESS`, original kept in `state/vm.orig`, re-applied by the sweep; `/proc/sys` only | Settings -> Services & privacy switch, `sh debloat.sh undo vmtune`, `./revert.sh`, or a reboot (stock) |
 
 Measured with the same cycle (YouTube, Netflix, HDMI 2, Home; `results/r8-swappiness.txt`): swap-ins 6972 / 5347 / 4025, swap-outs 20192 / 12647 / 12538, major faults 7490 / 5705 / 4387 at swappiness 100 / 40 / 15. Fewer flash writes and fewer stalls; the Settings-key latency itself did not change (see 8b). Verified: apply, undo, re-apply, `tools/check.sh` passes. Value 20 chosen as a middle between the measured 40 and 15; not measured on its own.
 
@@ -240,3 +240,15 @@ the Magic Remote sends Linux key codes on `LGE M-RCU - Builtin [0]`: digits 2-11
 | **LG's Input picker and Guide / Live Menu are replaced by our Inputs panel** (an overlay page `inputs.html`, same toggle trick as Settings: the second press closes it): the compositor patch swaps LG's `quickinputpicker` launch (2 call sites) and the two Live Menu launches in `appLaunch.js` | `tv/qs/appLaunch.head.js` (`tvdOpenOverlay`), `qspatch.sh` awk (`q == 2, g == 2` or the build is refused), `common.sh` (`overlay_appdesc`, `inputs_appdesc`, `mkhtml`), `settings-open.sh [launch\|close] inputs`, `app.js` (`INPMODE`) | `qspatch.sh undo` |
 
 Verified: pointer watcher counters (32 shows, 32 hides) and the owner's report; Back leave logic reached Home from Netflix through the real code path (the held / double timing could only be exercised with injected keys, which this kernel echoes twice: the owner has to confirm with the real remote); LG saver swap; brightness set in Home, HDMI 1-3 and Live TV contexts; Inputs overlay opens, paints (`inputs-painted`) and closes on a second launch; the patch applies with the replacement counts. NOT verified: the physical Input / Guide keys (injection did not reach the handler), Back hold / double on the real remote.
+
+### 9b: RAM audit (measured on the dev TV, `results/r9-*`)
+
+Memory by process (PSS + swapped, MB): YouTube (`cobalt`) 83 while resident, HDMI input app 57, WebAppMgr 38 + 33 + 13, surface-manager 35, MaliitServer 19, tvservice 20, ss.gateway 20 (Homebrew, kept), pbs 16 (holds a 16 MB EPG database in `/tmp/epg`: left alone, Live TV needs it), SettingsService 14. Kernel: slab 44 MB, page tables 11 MB, CMA 168 MB reserved for video (not usable). **LG's swap `eswap` is zram (600 MB compressed RAM) + about 100 MB of eMMC**, so the claim in 8a that the TV had written 3.7 GB to flash was wrong (corrected everywhere); swappiness 20 still cuts swapping by 40 % (compression work, stalls).
+
+| What | Result | Where | Undo |
+|---|---|---|---|
+| **Close HDMI input apps left in the background** (default after 5 min, option "Close inputs I left after"): closing hdmi1+hdmi2 while on Home raised MemAvailable 235 -> 326 MB (**+91 MB**); returning to an input takes about 0.75 s instead of 0.3 s (measured 3 rounds) | `lastapp.sh reap` (`closeinputs`), already-running inputs are seeded at start, `app.js` row | set it to Never |
+| Streaming apps left in the background are closed after 2 hours (was off; option "Close apps I left on Home after", Never / 30 min / 1 h / 2 h / 5 h); Netflix holds about 125 MB, YouTube 83 MB | `lastapp.sh reap` (`closeidle`, default 120) | set it to Never (use this if you play music in the background) |
+| LG's Assistant and Browser apps: already kept closed by `idleapps` (checked: not running) | - | - |
+
+Tried and dropped: keeping a hidden Settings page alive for instant pop-ups: WebAppMgr has `pauseApp` (hides the page, keeps it running) but a later `launchApp` does not show it again and there is no resume / show call, so a paused page cannot be re-shown; the 450 ms of page creation stays. Not touched on purpose: MaliitServer (the on-screen keyboard of LG's web apps), pbs, the WebAppMgr command-line cache sizes (`--skia-image-cache-size-mb=40` etc. are maxima, changing them means restarting every web app and editing the Upstart job).

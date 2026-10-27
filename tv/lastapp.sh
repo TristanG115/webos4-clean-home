@@ -11,7 +11,8 @@
 #   forget  0 | N                           forget apps you left more than N minutes ago (0 = never)
 #   depth   1..8                            how many steps back Back can go
 #   leave   both | hold | double | off      leave an app with Back held / pressed twice quickly (backchain.sh, keywatch.py)
-#   closeidle 0 | N                         close a streaming app that has been sitting in the background for N minutes (0 = never; frees its memory, about 125 MB for
+#   closeinputs 0 | N                       close an HDMI input app that has been in the background for N minutes (default 5; frees 50-60 MB each, reopens in about 0.7 s)
+#   closeidle 0 | N  (default 120)                        close a streaming app that has been sitting in the background for N minutes (0 = never; frees its memory, about 125 MB for
 #                                           Netflix; it also stops music that plays in the background, so it is off by default). LG's own apps, inputs and Home are never closed.
 . /media/developer/tv-debloat/common.sh
 PIDF=/tmp/lastapp.pid; PIDP=/tmp/lastapp-power.pid; PIDR=/tmp/lastapp-reap.pid; LEFT=/tmp/appleft; STK=/tmp/appstack; OUT=/tmp/lastapp; BC=$STATE/back.conf
@@ -37,21 +38,28 @@ case ${1:-start} in
       forget) case $3 in ''|*[!0-9]*) exit 1;; esac; [ "$3" -le 1440 ] || exit 1;;
       depth) case $3 in 1|2|3|4|5|6|7|8) ;; *) exit 1;; esac;;
       leave) case $3 in both|hold|double|off) ;; *) exit 1;; esac;;
+      closeinputs) case $3 in ''|*[!0-9]*) exit 1;; esac; [ "$3" -le 1440 ] || exit 1;;
       closeidle) case $3 in ''|*[!0-9]*) exit 1;; esac; [ "$3" -le 1440 ] || exit 1;;
-      '') printf '{"reset":"%s","forget":%s,"depth":%s,"closeidle":%s,"leave":"%s"}\n' "$(bconf reset saver)" "$(bconf forget 0)" "$(bconf depth 8)" "$(bconf closeidle 0)" "$(bconf leave both)"; exit 0;;
+      '') printf '{"reset":"%s","forget":%s,"depth":%s,"closeidle":%s,"closeinputs":%s,"leave":"%s"}\n' "$(bconf reset saver)" "$(bconf forget 0)" "$(bconf depth 8)" "$(bconf closeidle 120)" "$(bconf closeinputs 5)" "$(bconf leave both)"; exit 0;;
       *) exit 1;;
     esac
     { grep -v "^$2=" $BC 2>/dev/null; echo "$2=$3"; } > $BC.tmp && mv $BC.tmp $BC; exit 0;;
   why) # called by the launcher page / watchers: "saver" or "standby" happened - forget the history if the options say so
     case "$(bconf reset saver)/$2" in saver/saver|saver_standby/saver|saver_standby/standby) do_clear "$2";; esac; exit 0;;
   reap) # close streaming apps that have been in the background longer than closeidle minutes (called every 2 minutes by the loop below)
-    n=$(bconf closeidle 0); [ "$n" -gt 0 ] 2>/dev/null && [ -s $LEFT ] || exit 0
+    n=$(bconf closeidle 120); ni=$(bconf closeinputs 5); [ -s $LEFT ] || exit 0
     now=$(date +%s); fg=$(lun luna://com.webos.applicationManager/getForegroundAppInfo '{}' | sed -n 's/.*"appId" *: *"\([^"]*\)".*/\1/p' | head -1); run=$(running_ids)
     : > $LEFT.new
     while read -r id t; do
       [ -n "$id" ] || continue
-      if [ $((now - t)) -ge $((n * 60)) ]; then
-        case "$id" in com.webos.*|com.palm.*|"$HOME_ID"|"$SET_ID"|"$fg") continue;; esac        # LG's apps, inputs, Home and what is on screen are never touched
+      lim=$n
+      case "$id" in
+        com.webos.app.hdmi[0-9]*) lim=$ni;;                                      # an HDMI input app holds about 50-60 MB; it restarts in under a second
+        com.webos.*|com.palm.*|"$HOME_ID"|"$SET_ID"|"$INP_ID") continue;;        # LG's other apps, Home and our overlays are never touched
+      esac
+      [ "$lim" -gt 0 ] 2>/dev/null || continue                                  # this kind is switched off
+      if [ $((now - t)) -ge $((lim * 60)) ]; then
+        [ "$id" = "$fg" ] && continue                                            # what is on screen is never touched
         if echo "$run" | grep -qx "$id"; then
           lun luna://com.webos.applicationManager/closeByAppId "{\"id\":\"$id\",\"forceMode\":true}" >/dev/null; log "lastapp: closed $id (in the background for $(( (now - t) / 60 )) min)"
         fi
@@ -82,6 +90,8 @@ echo $! > $PIDP
 ( while :; do sleep 120; sh "$0" reap; done ) </dev/null >/dev/null 2>&1 &
 echo $! > $PIDR
 prev=""
+# input apps that are already running in the background when this starts (after a boot or a restart of this script) count as "left just now"
+for id in $(running_ids | grep -E '^com\.webos\.app\.hdmi[0-9]'); do grep -q "^$id " $LEFT 2>/dev/null || echo "$id $(date +%s)" >> $LEFT; done
 while :; do
   luna-send -i luna://com.webos.applicationManager/getForegroundAppInfo '{"subscribe":true}' </dev/null 2>/dev/null | while read -r l; do
     id=$(printf %s "$l" | sed -n 's/.*"appId" *: *"\([^"]*\)".*/\1/p')

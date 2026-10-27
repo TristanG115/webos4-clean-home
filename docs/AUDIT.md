@@ -136,7 +136,7 @@ What is left is WebAppMgr's page creation. Keeping a hidden page alive is not po
 
 ### 7.2 Memory
 
-* The TV swaps to an **encrypted eMMC partition** with `vm.swappiness=100`; after 4.5 h it had written 965k pages (3.7 GB). `vmtune` (swappiness 20): for the same cycle swap-ins 6972 -> 4025 (-42 %), swap-outs 20192 -> 12538 (-38 %), major faults 7490 -> 4387 (-41 %) at swappiness 15; 40 gave -23 %, -37 %, -24 %. Fewer flash writes, fewer stalls.
+* **Correction (round 9):** the swap device `eswap` is a dm-linear concatenation of **600 MB of zram (compressed RAM, hardware-assisted compressor)** and about 100 MB of eMMC, so almost all of the swapping happens in compressed RAM (239 MB of swapped data sat in 71 MB of RAM), not on the flash; the earlier statement that 3.7 GB had been written to the flash was wrong. `vm.swappiness=100` made the kernel compress and decompress program memory constantly (CPU and latency, not flash wear). `vmtune` (swappiness 20): for the same cycle swap-ins 6972 -> 4025 (-42 %), swap-outs 20192 -> 12538 (-38 %), major faults 7490 -> 4387 (-41 %) at swappiness 15; 40 gave -23 %, -37 %, -24 %. Fewer flash writes, fewer stalls.
 * Who holds the RAM: WebAppMgr main process about 290 MB RSS, one renderer about 130 MB, Netflix kept resident about 125 MB (RSS+swap), the HDMI input app about 65 MB. No daemon is above 8 MB, so stopping more services saves almost nothing.
 
 ### 7.3 The pointer: what was tried and what is left

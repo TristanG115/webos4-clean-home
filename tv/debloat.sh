@@ -158,7 +158,7 @@ do_qspatch() {
     status) echo "qspatch: $(sh "$D/qspatch.sh" status)";;
   esac
 }
-# vmtune: the kernel swaps to the encrypted eMMC partition with vm.swappiness=100 (it prefers swapping program memory over dropping cache). 20 keeps the
+# vmtune: the kernel swaps into LG's swap device (dm-linear: 600 MB of zram = compressed RAM first, then a small encrypted eMMC partition) with vm.swappiness=100 (it prefers swapping program memory over dropping cache). 20 keeps the
 # running apps in RAM: measured on the dev TV for the same usage cycle, 42 % fewer swap-ins, 38 % fewer swap-outs, 41 % fewer major faults (results/r8-swappiness.txt).
 # Runtime only (/proc/sys), the original value is kept in state/vm.orig and a reboot is stock.
 VM_SWAPPINESS=20
