@@ -29,12 +29,18 @@ if grep -q '\[NO\]' /tmp/tv-diagnose.txt; then echo; echo "A required piece is m
 [ $CHECK = 1 ] && { echo; echo "--check: nothing was changed."; exit 0; }
 grep -q '\[WARN\]' /tmp/tv-diagnose.txt && { echo; echo "There are [WARN] lines: this TV differs from the tested one. Read AGENTS.md section 8 first."; ask "Continue anyway?" || exit 1; }
 
+step "2b/7 does our remote emulator (key injection) work on this TV? (presses Home once; the Back-key features and the tests depend on it)"
+if ask "Run tools/emulator-probe.sh --effect now?"; then ./tools/emulator-probe.sh --effect | tail -12; else echo "skipped: run  ./tools/emulator-probe.sh --effect  any time"; fi
+
 step "3/7 keep a way back: Telnet or SSH must stay enabled, and the undo script is ./revert.sh"
 ask "Continue?" || exit 1
 
 step "4/7 copy the files (only writes /media/developer/tv-debloat; undo: delete that folder)"
 sh tools/deploy.sh || exit 1
 ./tv.sh 'test -f /media/developer/tv-debloat/revert.sh && echo "undo script is on the TV (do NOT run it unless you want everything removed)"'
+
+echo; echo "What this TV supports (decided from facts about it, saved in state/caps.conf):"
+./tv.sh 'sh /media/developer/tv-debloat/caps.sh write | grep "^feature_"'
 
 step "5/7 debloat, one item at a time (undo: ./revert.sh, or sh debloat.sh undo <item>)"
 ITEMS=$(./tv.sh 'grep -v "^#" /media/developer/tv-debloat/services.tsv | cut -d"|" -f1' | tr '\n' ' ')

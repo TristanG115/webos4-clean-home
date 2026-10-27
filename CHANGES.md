@@ -321,3 +321,16 @@ Not verified: the guard on a genuinely weaker TV (only simulated with the Weak p
 | **vmtune: swap read-ahead off** (vm.page-cluster 0, original saved in state/vm.pc.orig) | tv/debloat.sh | sh debloat.sh undo vmtune |
 
 Tested: remote json, Telnet off/on (SSH untouched), cursorclear off / build 0.6 s / cached 0.12 s, cover shown and hidden at runtime, both boot phases run for real, two cold reboots (Home ready 79 s -> 59.9 s). NOT verified: the cover on a cold boot that starts on Home, (a boot that starts on an input ends on our Home: see AGENTS.md Round 15), Wi-Fi joining (not built), the page-cluster benefit.
+
+## Added in round 16 (2026-10-27: power-on destination, screensaver defaults, portability tools)
+
+| What | Where / command | Undo |
+|---|---|---|
+| **Settings -> Power & timers -> "When the TV turns on, go to"** (Home default / Where it was / HDMI 1-4): poweron.sh, called by lastapp.sh on Active after standby / Screen Off / suspend and by boot.sh at the end of a full start; also sets LG's homeAutoLaunch | tv/poweron.sh, tv/lastapp.sh, tv/boot.sh, tv/api.sh (/api/poweron), tv/launcher/app.js | choose "Where it was" |
+| **Screensaver defaults**: photo every 300 s (choices 12 s - 15 min), backlight 40 % of normal (row shows the real number), dim 20 | tv/launcher/app.js (DEFAULTS, Home & Screensaver) | change the rows; stored values win |
+| **LG screensaver safety net**: third independent check every 20 s in the home-on.sh watchdog | tv/home-on.sh | - |
+| **Brightness**: re-enabled at 35 (it had been switched off); API changes are now logged | state/brightness (TV only), tv/api.sh | Settings -> Picture -> Same brightness everywhere -> Off |
+| **Self-check + capabilities**: health.sh (/api/health, About -> Self-check, sweep logs non-ok checks), caps.sh (/api/caps, state/caps.conf, install.sh prints it) | tv/health.sh, tv/caps.sh, tv/api.sh, tv/home-on.sh, tv/launcher/app.js, install.sh | - |
+| **Remote emulator probe**: tools/emulator-probe.sh [--effect] runs tv/keys.py on any TV (device discovery by capability, native event size, round trip, optional Home effect); keywatch.py uses the native event size; install.sh offers the probe | tv/keys.py, tools/emulator-probe.sh, tv/keywatch.py, install.sh | - |
+
+Tested on the dev TV: poweron home / last / hdmi2 / home through screen-off-on cycles, the saver swap and the new poll check against a real LG screensaver, emulator probe (EMULATOR OK incl. effect), caps.sh and health.sh (17 checks ok). NOT verified: a real cold boot that starts on Home with the cover, a TV with a 64-bit CPU or webOS 5+ (probe and caps are written for them but untried), the power-on destination after a real standby (only Screen Off / On was exercised).

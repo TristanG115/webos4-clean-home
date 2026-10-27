@@ -1,5 +1,17 @@
 [
   {
+    "v": "2026.10.27.5",
+    "date": "2026-10-27",
+    "title": "Choose where the TV starts, calmer screensaver, self-check",
+    "notes": [
+      "New: Settings > Power & timers > \"When the TV turns on, go to\". Pick Home (default), Where it was (LG's own behaviour) or an HDMI input. It works when the TV wakes from Quick Start standby and after a full start.",
+      "Changed: the screensaver photo now changes every 5 minutes (you can pick 12 seconds up to 15 minutes), and the screensaver keeps 40% of your normal backlight by default (the Screensaver backlight row now tells you the real number, for example 14 when your brightness is 35). Both can be changed in Settings > Home & Screensaver.",
+      "Fixed: LG's own screensaver (the one that appears on an HDMI input with no signal) is now swapped for ours by three independent checks instead of two, so it should never stay on screen.",
+      "New: Settings > About & updates > Self-check tells you whether everything the project promises is actually in force right now (our Home, the watchers, ad blocking, the update lock, SSH), and which features this TV supports.",
+      "For installing on other TVs: a new test (tools/emulator-probe.sh) shows whether the remote-key emulation works on a TV before anything is installed, and the Back-key reader now works on TVs whose processor uses bigger key events."
+    ]
+  },
+  {
     "v": "2026.10.27.4",
     "date": "2026-10-27",
     "title": "Faster start-up, a start-up screen, Remote access page, better Network page",

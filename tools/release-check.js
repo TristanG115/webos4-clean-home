@@ -26,5 +26,8 @@ for (const f of fs.readdirSync(path.join(root, 'tv')).filter(f => f.endsWith('.s
   const t = fs.readFileSync(path.join(root, 'tv', f), 'utf8'); if (/\r/.test(t)) bad.push('tv/' + f + ' has CRLF line endings');
   try { cp.execFileSync('sh', ['-n', path.join(root, 'tv', f)], { stdio: 'pipe' }); } catch (e) { if (e.code !== 'ENOENT') bad.push('tv/' + f + ': ' + String(e.stderr).split('\n')[0]); }
 }
+for (const f of fs.readdirSync(path.join(root, 'tv')).filter(f => f.endsWith('.py'))) {
+  try { cp.execFileSync('python', ['-c', 'import sys; compile(open(sys.argv[1]).read(), sys.argv[1], "exec")', path.join(root, 'tv', f)], { stdio: 'pipe' }); } catch (e) { if (e.code !== 'ENOENT') bad.push('tv/' + f + ': ' + String(e.stderr).split('\n').slice(-2)[0]); }
+}
 if (bad.length) { console.error('release-check: ' + bad.length + ' problem(s)\n - ' + bad.join('\n - ')); process.exit(1); }
 console.log('release-check: OK, version ' + ver + ', ' + notes.length + ' change note(s)');

@@ -118,8 +118,15 @@ alive && exit 0
 echo $$ > $PIDF
 log "lastapp: tracking the foreground app"
 # TV going to standby (Quick Start "active standby" keeps RAM, so the history would survive): the power service tells us; the options decide what to do
-( luna-send -i luna://com.webos.service.tvpower/power/getPowerState '{"subscribe":true}' </dev/null 2>/dev/null | while read -r l; do
-    case "$l" in *tandby*|*uspend*|*"Screen Off"*|*Off*) sh "$0" why standby;; esac
+# Coming back (Active after standby / screen off / suspend; NOT after LG's own "Screen Saver" state) runs poweron.sh: Settings -> Power & timers -> "When the TV turns on, go to".
+( prevp=Active; luna-send -i luna://com.webos.service.tvpower/power/getPowerState '{"subscribe":true}' </dev/null 2>/dev/null | while read -r l; do
+    st=$(printf %s "$l" | sed -n 's/.*"state" *: *"\([^"]*\)".*/\1/p'); [ -n "$st" ] || continue
+    case "$st" in
+      Active) case "$prevp" in *tandby*|*uspend*|"Screen Off"|*Off*) ( setsid sh "$D/poweron.sh" go wake ) </dev/null >/dev/null 2>&1 & ;; esac;;
+      *tandby*|*uspend*|"Screen Off"|*Off*) sh "$0" why standby;;
+    esac
+    [ "$st" = "$prevp" ] || log "lastapp: power $prevp -> $st"
+    prevp=$st
   done ) </dev/null >/dev/null 2>&1 &
 echo $! > $PIDP
 ( while :; do sleep 120; sh "$0" reap; done ) </dev/null >/dev/null 2>&1 &

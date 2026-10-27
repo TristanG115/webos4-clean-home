@@ -158,6 +158,8 @@ case "$P" in
   /api/remote/telnet) case "$(qget v)" in on|off) m=$(timeout -t 15 sh "$D/remote.sh" telnet "$(qget v)" </dev/null 2>&1 | head -1 | tr -d '"');; *) m="bad request";; esac
                 hdr "200 OK"; printf '{"msg":"%s"}' "$m";;
   /api/wifi)    hdr "200 OK"; printf '{"saved":%s,"status":%s}' "$(timeout -t 10 sh "$D/wifi.sh" saved </dev/null 2>/dev/null || echo '{}')" "$(timeout -t 10 sh "$D/wifi.sh" status </dev/null 2>/dev/null || echo '{}')";;
+  /api/health)  hdr "200 OK"; timeout -t 20 sh "$D/health.sh" json </dev/null 2>/dev/null || echo '{"ok":false,"checks":[]}';;
+  /api/caps)    hdr "200 OK"; timeout -t 20 sh "$D/caps.sh" json </dev/null 2>/dev/null || echo '{}';;
   /api/cover/hide) ( sh "$D/cover.sh" hide </dev/null >/dev/null 2>&1 & ); hdr "200 OK"; echo '{"ok":true}';;
   /api/mem)     hdr "200 OK"; timeout -t 10 sh "$D/memguard.sh" json </dev/null 2>/dev/null || echo '{"running":false}';;
   /api/mem/conf) case "$(qget v)" in auto|roomy|standard|weak) timeout -t 10 sh "$D/memguard.sh" conf profile "$(qget v)" </dev/null >/dev/null 2>&1;; esac
@@ -173,7 +175,8 @@ case "$P" in
                 hdr "200 OK"; sh "$D/lastapp.sh" conf;;
   /api/backchain) case "$(qget v)" in off) touch "$STATE/backchain-off";; on) rm -f "$STATE/backchain-off";; esac
                 hdr "200 OK"; [ -e "$STATE/backchain-off" ] && echo '{"chain":"off"}' || echo '{"chain":"on"}';;
-  /api/brightness) v=$(qget v); if [ "$v" = off ]; then ( setsid sh "$D/brightness.sh" set off </dev/null >/dev/null 2>&1 & ); elif [ -n "$v" ]; then timeout -t 60 sh "$D/brightness.sh" set "$v" </dev/null >/dev/null 2>&1; fi
+  /api/poweron) v=$(qget v); hdr "200 OK"; if [ -n "$v" ]; then timeout -t 15 sh "$D/poweron.sh" set "$v" </dev/null 2>/dev/null || echo '{"error":"bad destination"}'; else sh "$D/poweron.sh" get </dev/null; fi;;
+  /api/brightness) v=$(qget v); [ -n "$v" ] && log "api: brightness set to $v (from the Settings screen or a script)"; if [ "$v" = off ]; then ( setsid sh "$D/brightness.sh" set off </dev/null >/dev/null 2>&1 & ); elif [ -n "$v" ]; then timeout -t 60 sh "$D/brightness.sh" set "$v" </dev/null >/dev/null 2>&1; fi
                 hdr "200 OK"; printf '{"brightness":"%s"}' "$(sh "$D/brightness.sh" status)";;
   /api/pointerhide) case "$(qget v)" in on) rm -f "$STATE/pointerhide-off"; ( setsid sh "$D/pointerhide.sh" start </dev/null >/dev/null 2>&1 & );; off) touch "$STATE/pointerhide-off"; sh "$D/pointerhide.sh" stop >/dev/null 2>&1;; esac
                 hdr "200 OK"; printf '{"pointerhide":"%s"}' "$([ -e "$STATE/pointerhide-off" ] && echo off || echo on)";;

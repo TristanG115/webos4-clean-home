@@ -5,6 +5,7 @@
 # new ones each time it reconnects. Python 2.7 (the only Python on the TV); 32-bit ARM struct input_event = 16 bytes.
 import os, select, struct, sys, time
 EV_KEY = 1
+ESIZE = struct.calcsize('llHHi')      # struct input_event of THIS CPU: 16 bytes on 32-bit ARM (the dev TV), 24 on 64-bit
 BACKS = (158, 412)
 CONF = '/media/developer/tv-debloat/state/back.conf'
 
@@ -67,11 +68,11 @@ while True:
         time.sleep(0.2)
     for fd in r:
         try:
-            data = os.read(fd, 16 * 32)
+            data = os.read(fd, ESIZE * 32)
         except OSError:
             continue
-        for i in range(0, len(data) - 15, 16):
-            _, _, t, c, v = struct.unpack('<iiHHi', data[i:i + 16])
+        for i in range(0, len(data) - ESIZE + 1, ESIZE):
+            _, _, t, c, v = struct.unpack('llHHi', data[i:i + ESIZE])
             if t == EV_KEY and c in BACKS:
                 if v == 1:
                     n = time.time()

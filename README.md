@@ -45,6 +45,9 @@ which both skip webOS 4 (Upstart instead of systemd, no usable Node). See [NOTIC
 * **Remote access and Network**: Settings -> *Remote access* shows the TV's name, wired and Wi-Fi IP, MAC address, the exact `ssh` / `telnet` commands, whether an SSH key is installed, and a Telnet switch (SSH always stays on; Telnet can only go off when a key is installed). Settings -> *Network* shows the router, Wi-Fi radio and saved networks; joining a new Wi-Fi still opens LG's own Settings.
 * **Fast start-up**: our Home is ready about 60 s after power-on (79 s before), a plain "starting up" cover hides LG's Home while the TV boots (only when the TV would start on LG's Home), and a memory guard keeps the TV from thrashing (Settings -> About & updates).
 
+* **Power-on destination**: Settings -> Power & timers -> *When the TV turns on, go to* (Home by default, or where it was, or an HDMI input), for Quick Start wake-ups and full starts. The screensaver keeps 40 % of your backlight and changes photo every 5 minutes by default, and LG's own screensaver is swapped for ours by three independent checks.
+* **Easy on other TVs**: `tools/emulator-probe.sh --effect` tests the remote-key emulation on a TV before installing, `tools/diagnose.sh` gives a compatibility verdict, `tv/caps.sh` decides per feature what a TV supports, and Settings -> About & updates shows a live self-check.
+
 ### Photo gallery from the TV and your phone
 * *Settings -> Photo gallery* shows your photos; "Add photos from your phone" shows a QR code and the phone page uploads whole photos (shrunk to screen size) with automatic framing. A **framing editor** (TV remote or phone) moves/zooms the photo and shows a see-through copy of Home on top. Photos are private and git-ignored.
 

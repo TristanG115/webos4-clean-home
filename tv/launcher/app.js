@@ -24,7 +24,7 @@ var DEFAULTS = {
   weather: {mode: 'auto', zip: '', unit: 'F'},
   clock24: false,
   bg: {on: true, everyMin: 10},
-  saver: {on: true, idleMin: 2, photos: true, slideSec: 12, weather: true, dim: 30, backlight: 50},
+  saver: {on: true, idleMin: 2, photos: true, slideSec: 300, weather: true, dim: 20, backlight: 40},
   ui: {hideCursor: true},
   dock: ['netflix','youtube.leanback.v4','hulu','com.disney.disneyplus-prod'],
   hide: ['webos.day','com.webos.app.homeconnect','com.webos.app.home','com.webos.app.fullhome']
@@ -329,7 +329,7 @@ function drift(){
 // the TV's real backlight: lowered while the screensaver runs (tv/backlight.sh keeps the original and restores it in five independent ways)
 var blOn = false, blT = null;
 function blDim(){
-  var p = S.saver.backlight === undefined ? 50 : S.saver.backlight; if (p >= 100 || MOCK) return;
+  var p = S.saver.backlight === undefined ? 40 : S.saver.backlight; if (p >= 100 || MOCK) return;
   blOn = true; api('/api/backlight?v=dim&pct=' + p, noop, 15000);
   clearInterval(blT); blT = setInterval(function(){ if (saverOn) api('/api/backlight?v=hold', noop); }, 60000);
 }
@@ -529,10 +529,10 @@ cats = [
     tgl('Screensaver when idle', 'Clock, date and weather after a while', function(){ return S.saver.on; }, function(b){ setPath('saver.on', b); }),
     chc('Start after', '', [[1,'1 min'],[2,'2 min'],[5,'5 min'],[10,'10 min'],[15,'15 min'],[30,'30 min']], function(){ return S.saver.idleMin; }, function(v){ setPath('saver.idleMin', v); }),
     tgl('Show gallery photos in screensaver', 'Off = dark screen with clock', function(){ return S.saver.photos; }, function(b){ setPath('saver.photos', b); }),
-    chc('Photo changes every', '', [[8,'8 s'],[12,'12 s'],[20,'20 s'],[30,'30 s'],[60,'1 min']], function(){ return S.saver.slideSec; }, function(v){ setPath('saver.slideSec', v); }),
+    chc('Photo changes every', 'Slow is easier on the eyes and on the TV', [[12,'12 s'],[30,'30 s'],[60,'1 min'],[120,'2 min'],[300,'5 min'],[600,'10 min'],[900,'15 min']], function(){ return S.saver.slideSec; }, function(v){ setPath('saver.slideSec', v); }),
     tgl('Show weather in screensaver', '', function(){ return S.saver.weather; }, function(b){ setPath('saver.weather', b); wxRender(); }),
     sld('Screensaver dimming', 'Darkens the photo so the screensaver is easy on the eyes; the clock stays bright. 0 = no dimming', 0, 80, 5, function(){ return S.saver.dim === undefined ? 30 : S.saver.dim; }, function(v){ setPath('saver.dim', v); }),
-    sld('Screensaver backlight', 'Lowers the TV’s real backlight while the screensaver runs (saves power, easier on the eyes). 100 = unchanged. It is always restored when you wake the TV.', 10, 100, 5, function(){ return S.saver.backlight === undefined ? 50 : S.saver.backlight; }, function(v){ setPath('saver.backlight', v); }),
+    sld('Screensaver backlight', function(){ var b = parseInt(BRV, 10) || 100, p = S.saver.backlight === undefined ? 40 : S.saver.backlight; return 'How much of your normal backlight the screensaver keeps (100 = unchanged). With your brightness at ' + b + ' that is about ' + Math.max(5, Math.round(b * p / 100)) + ' on LG’s 0–100 scale. Always restored when you wake the TV.'; }, 10, 100, 5, function(){ return S.saver.backlight === undefined ? 40 : S.saver.backlight; }, function(v){ setPath('saver.backlight', v); }),
     tgl('24-hour clock', '', function(){ return S.clock24; }, function(b){ setPath('clock24', b); })
   ]; }},
   {id: 'weather', name: 'Weather', icon: 'cloud', title: 'Weather', desc: 'Free forecasts from Open-Meteo.', build: function(){ return [
@@ -584,9 +584,9 @@ cats = [
     lgTgl('sound', 'startupSound', 'Startup sound', ''), lgTgl('sound', 'tvPowerSound', 'Power-on sound', '')
   ]; }},
   {id: 'power', name: 'Power & timers', icon: 'power', title: 'Power & timers', desc: '',
-    lg: [['option', ['quickStartMode','standByLight','logoLight','powerOnLight']], ['general', ['homeAutoLaunch']], ['time', ['autoClock','daylightSaving','sleepTimer','noOperationAutoOff','automaticStandBy','noSignalAutoOff','timeZone']]], build: function(){ var tz = (LGC.time || {}).timeZone; return [
+    lg: [['option', ['quickStartMode','standByLight','logoLight','powerOnLight']], ['general', ['homeAutoLaunch']], ['time', ['autoClock','daylightSaving','sleepTimer','noOperationAutoOff','automaticStandBy','noSignalAutoOff','timeZone']]], info: '/api/poweron', build: function(){ var self = this, tz = (LGC.time || {}).timeZone; return [
     lgTgl('option', 'quickStartMode', 'Quick Start', 'Turns on in a couple of seconds instead of a full start. Uses a little more power while off. On is recommended: it works with this launcher and makes no difference to LG updates being blocked.'),
-    lgTgl('general', 'homeAutoLaunch', 'Show Home when the TV turns on', ''),
+    chc('When the TV turns on, go to', 'Home is our Home screen. “Where it was” is LG’s own behaviour (the input or app you left). Applies to Quick Start wake-ups and to a full start.', [['home','Home (recommended)'],['last','Where it was'],['hdmi1','HDMI 1'],['hdmi2','HDMI 2'],['hdmi3','HDMI 3'],['hdmi4','HDMI 4']], function(){ return (self.data && self.data.dest) || 'home'; }, function(v){ self.data = self.data || {}; self.data.dest = v; api('/api/poweron?v=' + v, function(err, r){ toast(err ? 'Could not change that' : 'Saved'); }); }),
     lgTgl('option', 'standByLight', 'Standby light', ''), lgChc('option', 'logoLight', 'LG logo light', '', LEVELS), lgTgl('option', 'powerOnLight', 'Power-on light', ''),
     head('Timers'),
     lgChc('time', 'sleepTimer', 'Sleep timer', 'Turns the TV off after this time', SLEEPS),
@@ -739,10 +739,15 @@ cats = [
     head('Installed apps (' + apps.length + ')')];
     apps.forEach(function(a){ rows.push(inf(a.title, a.version + (a.pending ? '    ·  update waiting' : ''))); });
     return rows; }},
-  {id: 'about', name: 'About & updates', icon: 'info', title: 'About & updates', desc: '', info: '/api/sysinfo', lg: [['support', ['automaticUpdate']], ['option', ['appUpdateMode']]], build: function(){ var j = this.data || {}, lg = j.lg || {}, m = j.mem || {}; return [
+  {id: 'about', name: 'About & updates', icon: 'info', title: 'About & updates', desc: '', info: '/api/sysinfo', lg: [['support', ['automaticUpdate']], ['option', ['appUpdateMode']]], build: function(){ var self = this, j = this.data || {}, lg = j.lg || {}, m = j.mem || {};
+    if (!self.askedHealth) { self.askedHealth = true; api('/api/health', function(e1, h){ if (h) { self.health = h; if (settingsOn && cats[catIdx].id === 'about') renderCat(false); } }, 20000); api('/api/caps', function(e2, c){ if (c) { self.caps = c; if (settingsOn && cats[catIdx].id === 'about') renderCat(false); } }, 20000); }
+    return [
     inf('Model', function(){ return lg.modelName || '–'; }), inf('Firmware', function(){ return lg.firmwareVersion || '–'; }), inf('webOS SDK', function(){ return lg.sdkVersion || '–'; }),
     inf('Memory free', function(){ return (m.availMB || 0) + ' of ' + (m.totalMB || 0) + ' MB'; }), inf('Swap in use', function(){ return (m.swapUsedMB || 0) + ' MB'; }),
     inf('Running for', function(){ var s = j.uptime || 0, h = Math.floor(s / 3600), mi = Math.floor((s % 3600) / 60); return h + ' h ' + mi + ' min'; }), inf('Processes', function(){ return String(j.procs || '–'); }),
+    head('Self-check'),
+    inf('Everything in force', function(){ var h = self.health; if (!h) return 'checking…'; return h.fail ? h.fail + ' problem' + (h.fail > 1 ? 's' : '') : h.warn ? 'all fine, ' + h.warn + ' note' + (h.warn > 1 ? 's' : '') : 'all ' + h.pass + ' checks pass'; }, function(){ var h = self.health; if (!h) return ''; var bad = (h.checks || []).filter(function(c){ return c.s !== 'ok'; }).map(function(c){ return c.n + ': ' + c.m; }); return bad.length ? bad.join('   •   ') : 'Mounts, watchers, ad blocking, update lock and SSH were all checked a moment ago.'; }),
+    inf('This TV supports', function(){ var c = self.caps; if (!c) return 'checking…'; var k = Object.keys(c).filter(function(x){ return x.indexOf('feature_') === 0; }), n = k.filter(function(x){ return c[x] === 'yes'; }).length; return n + ' of ' + k.length + ' features'; }, function(){ var c = self.caps; if (!c) return ''; var no = Object.keys(c).filter(function(x){ return x.indexOf('feature_') === 0 && c[x] !== 'yes'; }).map(function(x){ return x.slice(8).replace(/_/g, ' ') + ' (' + c[x] + ')'; }); return (c.webos_release || '') + (c.arch ? ', ' + c.arch : '') + (c.ram_mb ? ', ' + c.ram_mb + ' MB' : '') + (no.length ? '.   Not available here: ' + no.join(', ') : '.   Every feature is available on this TV.'); }),
     head('Memory guard'),
     inf('Guard', function(){ var g = j.guard || {}; return !g.running ? 'off' : g.level === 'ok' ? 'watching, all fine' : g.level === 'low' ? 'LOW: closing idle apps' : 'CRITICAL: Home photos dropped'; }, 'Checks free memory and swapping every 10 seconds and steps in before the TV slows down. Switch in Services & privacy.'),
     inf('Lowest free memory since start', function(){ var g = j.guard || {}; return g.minAvailMB === null || g.minAvailMB === undefined ? '–' : g.minAvailMB + ' MB'; }),

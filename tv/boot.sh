@@ -11,13 +11,15 @@ until lun luna://com.webos.applicationManager/running '{}' | grep -q returnValue
   sleep 3; n=$((n+3)); [ $n -gt 240 ] && { log "boot: SAM never answered"; exit 0; }
 done
 sleep 2
+# what the TV came up on (LG starts on the last input): "Settings -> Power & timers -> When the TV turns on, go to" may send it back there once our Home is up
+FG0=$(lun luna://com.webos.applicationManager/getForegroundAppInfo '{}' | sed -n 's/.*"appId" *: *"\([^"]*\)".*/\1/p' | head -1)
 # our own start-up screen over LG's Home (only when LG's Home is what would show); home-on.sh removes it the moment our Home is ready
 sh "$D/cover.sh" show >/dev/null 2>&1
 [ -e "$STATE/backlight.orig" ] && sh "$D/backlight.sh" restore      # a screensaver dim must never survive a reboot
 # Only what must be in place before our Home starts goes first (the pointer pictures and the compositor patch, which restarts the compositor); every other switch that is ON
 # in Settings -> Services & privacy (state/svc.conf, defaults in services.tsv) is applied right after Home is up. That gets our Home on screen about 15 s sooner.
 sh "$D/debloat.sh" apply-early >/dev/null 2>&1
-if sh "$D/home-on.sh" >/dev/null 2>&1; then sh "$D/cover.sh" hide >/dev/null 2>&1; echo 0 > "$STATE/boot-count"; log "boot: launcher up, boot-count reset"; else sh "$D/cover.sh" hide >/dev/null 2>&1; log "boot: launcher not active (LG Home in use)"; fi
+if sh "$D/home-on.sh" >/dev/null 2>&1; then sh "$D/cover.sh" hide >/dev/null 2>&1; echo 0 > "$STATE/boot-count"; log "boot: launcher up, boot-count reset"; sh "$D/poweron.sh" boot "$FG0" >/dev/null 2>&1; else sh "$D/cover.sh" hide >/dev/null 2>&1; log "boot: launcher not active (LG Home in use)"; fi
 sh "$D/debloat.sh" apply-late >/dev/null 2>&1
 # refresh the remote ad-block lists in the background (needs the network; skipped when they are fresh)
 ( sh "$D/blocklist.sh" maybe-update >/dev/null 2>&1 ) </dev/null >/dev/null 2>&1 &
