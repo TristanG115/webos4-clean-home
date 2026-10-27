@@ -1,3 +1,5 @@
 stock   (round 1): surface-manager VmRSS: 56564 kB VmSwap: 0 kB  | total used swap 108 MB, avail 389 MB
 patched (round 1): surface-manager VmRSS: 52648 kB VmSwap: 0 kB  | total used swap 108 MB, avail 391 MB
 stock   (round 2): surface-manager VmRSS: 56716 kB VmSwap: 0 kB  | total used swap 107 MB, avail 385 MB
+Read from remote host 10.0.0.63: Connection reset by peer
+client_loop: send disconnect: Connection reset by peer

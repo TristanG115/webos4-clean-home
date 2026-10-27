@@ -21,7 +21,9 @@ BEFORE: swappiness=20 acr2_stub=1 keyfilter_mounts=0 admanager_stub=1 standin=1 
       zz-debloat -> zz-debloat.disabled
 [6/6] done - TV is stock again (launcher files stay in /media/developer/tv-debloat, inert while DISABLE exists)
 (--no-reboot: not rebooting)
-AFTER: swappiness=100 acr2_stub=1 keyfilter_mounts=0 admanager_stub=1 standin=0 hosts_block=2 hook=zz-debloat.disabled  DISABLE=yes
+AFTER: swappiRead from remote host 10.0.0.63: Connection reset by peer
+client_loop: send disconnect: Connection reset by peer
+yes
 tmpfs /mnt/lg/cmn_data/admanager/tmpData tmpfs rw,relatime 0 0
 hosts_block=0 swappiness=100 standin=0 DISABLE=/media/developer/tv-debloat/DISABLE hook=zz-debloat.disabled 
 remotelogger start/running, process 2594
