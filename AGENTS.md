@@ -186,6 +186,13 @@ Facts verified on webOS 4.5 (re-verify on other versions):
 - **Boot trap**: after a failed or rolled-back boot-time `qspatch`, the next boots skip it ("this build was never proven on a running TV") until `sh qspatch.sh apply` is run once from a running TV. Check `sh qspatch.sh status` after any unexpected reboot: Settings / Input / Guide keys are stock while it says `off`.
 - `mrcu` exposes `getConnectionStatus` (works with the remote asleep: `connected:false`); use it to know whether any mrcu experiment can answer.
 
+### Round 11 facts (verified on the dev TV, webOS 4.5)
+
+- **`luna://com.webos.applicationManager/getAppLifeEvents {"subscribe":true}`** emits one JSON line per event with `event` = `splash` (0.05 s after a launch, `showSplash:true`), `launch`, `foreground` (the app is in front, window visible; Spotify +1.7 s, Netflix +3.3 s), `background`, `close` / `stop` (with `reason`, e.g. `memoryReclaim` when LG's memory manager evicts), `preload`. During the splash the foreground is still the app that started the launch (Home), so keys reach Home. `lastapp.sh` keeps `/tmp/launching` (`app|from|uptime`) and `/tmp/fgnow` from it. An app that is already resident has no splash.
+- **`settingsservice/getSystemSettings {"category":"picture","keys":["backlight"],"subscribe":true}` pushes a message the instant the picture context changes** (input, picture mode, HDR) and on every change of the value; messages caused by `luna-send` carry `"caller":"com.webos.lunasend-N"`. A read with an explicit `dimension` (`{"pictureMode":..,"input":..,"_3dStatus":"2d"}`) works for any schema-valid context (invalid input names answer "no matched result"): valid inputs `default hdmi1-4 hdmi1_pc-hdmi4_pc av1 av2 comp1 dtv atv camera`, 28 picture modes (`/etc/palm/description.json`). A write creates the row. Seeding all of them takes 37 s, restoring 13 s.
+- **LG's memory manager** is `memchute` (`com.webos.memorymanager`, `/etc/palm/memorymanager-conf.json`: priority groups, `KeepOnLaunch`, `EfsTarget` includes YouTube). It evicts background apps by priority when memory is short; closing is reported as `close ... reason: memoryReclaim`. `/etc/palm/preload` policy: Netflix, Amazon, Browser, Tips, Assistant preload off (our `preload` item), YouTube `semi-full` and the HDMI input apps stay on.
+- BusyBox has no `paste`, no `grep --line-buffered`, no `ls --time-style`, no `time` keyword; `nice`, `setsid`, `usleep` exist. In `sh -s < file` tests the pipeline `luna-send -i ... | while read` delivers one compact JSON line per message.
+
 ## 6. Safety net (and how to prove it)
 
 | Layer | What | Test |
