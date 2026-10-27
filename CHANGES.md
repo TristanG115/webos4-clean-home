@@ -334,3 +334,15 @@ Tested: remote json, Telnet off/on (SSH untouched), cursorclear off / build 0.6 
 | **Remote emulator probe**: tools/emulator-probe.sh [--effect] runs tv/keys.py on any TV (device discovery by capability, native event size, round trip, optional Home effect); keywatch.py uses the native event size; install.sh offers the probe | tv/keys.py, tools/emulator-probe.sh, tv/keywatch.py, install.sh | - |
 
 Tested on the dev TV: poweron home / last / hdmi2 / home through screen-off-on cycles, the saver swap and the new poll check against a real LG screensaver, emulator probe (EMULATOR OK incl. effect), caps.sh and health.sh (17 checks ok). NOT verified: a real cold boot that starts on Home with the cover, a TV with a 64-bit CPU or webOS 5+ (probe and caps are written for them but untried), the power-on destination after a real standby (only Screen Off / On was exercised).
+
+## Added in round 17 (2026-10-27: power-on app, one backlight control, saver text and burn-in, systemd groundwork)
+
+| What | Where / command | Undo |
+|---|---|---|
+| **Power-on destination can be any installed app** (app:<id>) | tv/poweron.sh, tv/launcher/app.js (Power & timers) | choose Home |
+| **One backlight slider** applied to every input and app (LG's per-input Backlight row hidden; LG Brightness renamed Black level); set to 100 on this TV; a re-seed now restarts itself when the value changes mid-run | tv/launcher/app.js (brSld), tv/brightness.sh | slider to any value; the API still accepts v=off |
+| **Screensaver backlight is an absolute level** (default 15), dim 20; saver text about 35 % bigger; Home header text bigger and the duplicate date removed | tv/backlight.sh, tv/api.sh, tv/launcher/app.js, tv/launcher/index.html | Settings -> Home & Screensaver |
+| **Burn-in protection without photos**: slow full-screen glow (200 s loop) + the clock moves every 30 s | tv/launcher/index.html (#sglow), tv/launcher/app.js (drift) | - |
+| **systemd groundwork**: tv/init.sh behind all service stops/starts/restarts; tv/systemd-units.tsv (all commented guesses); tools/list-services.sh; tools/test-init.sh; caps.sh and diagnose.sh report it; qspatch refuses on systemd | tv/init.sh, tv/common.sh, tv/debloat.sh, tv/qspatch.sh, tv/caps.sh, tools/*.sh | revert.sh as always |
+
+Tested: poweron app destination (HDMI 1 -> Netflix), backlight 100 seeded on all 419 contexts, real Upstart path through the new wrappers (nudge undo/apply, unknown job skipped), tools/test-init.sh 18/18, Home and photo-less saver rendered. NOT verified: any real systemd TV, the saver backlight level and burn-in glow on the real panel (only rendered in the preview), the Settings sliders with the real remote.

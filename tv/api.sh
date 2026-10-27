@@ -165,7 +165,7 @@ case "$P" in
   /api/mem/conf) case "$(qget v)" in auto|roomy|standard|weak) timeout -t 10 sh "$D/memguard.sh" conf profile "$(qget v)" </dev/null >/dev/null 2>&1;; esac
                 hdr "200 OK"; echo '{"ok":true}';;
   /api/backlight) case "$(qget v)" in
-                  dim) pct=$(qget pct); timeout -t 15 sh "$D/backlight.sh" dim "$pct" </dev/null >/dev/null 2>&1;;
+                  dim) lvl=$(qget level); timeout -t 15 sh "$D/backlight.sh" dim "$lvl" </dev/null >/dev/null 2>&1;;
                   hold) sh "$D/backlight.sh" hold </dev/null >/dev/null 2>&1;;
                   restore) timeout -t 15 sh "$D/backlight.sh" restore </dev/null >/dev/null 2>&1;; esac
                 hdr "200 OK"; printf '{"backlight":"%s"}' "$(sh "$D/backlight.sh" status | cut -d' ' -f1)";;
@@ -175,7 +175,7 @@ case "$P" in
                 hdr "200 OK"; sh "$D/lastapp.sh" conf;;
   /api/backchain) case "$(qget v)" in off) touch "$STATE/backchain-off";; on) rm -f "$STATE/backchain-off";; esac
                 hdr "200 OK"; [ -e "$STATE/backchain-off" ] && echo '{"chain":"off"}' || echo '{"chain":"on"}';;
-  /api/poweron) v=$(qget v); hdr "200 OK"; if [ -n "$v" ]; then timeout -t 15 sh "$D/poweron.sh" set "$v" </dev/null 2>/dev/null || echo '{"error":"bad destination"}'; else sh "$D/poweron.sh" get </dev/null; fi;;
+  /api/poweron) v=$(qget v); hdr "200 OK"; if [ -n "$v" ]; then r=$(timeout -t 15 sh "$D/poweron.sh" set "$v" </dev/null 2>/dev/null); [ -n "$r" ] && echo "$r" || echo '{"error":"bad destination"}'; else sh "$D/poweron.sh" get </dev/null; fi;;
   /api/brightness) v=$(qget v); [ -n "$v" ] && log "api: brightness set to $v (from the Settings screen or a script)"; if [ "$v" = off ]; then ( setsid sh "$D/brightness.sh" set off </dev/null >/dev/null 2>&1 & ); elif [ -n "$v" ]; then timeout -t 60 sh "$D/brightness.sh" set "$v" </dev/null >/dev/null 2>&1; fi
                 hdr "200 OK"; printf '{"brightness":"%s"}' "$(sh "$D/brightness.sh" status)";;
   /api/pointerhide) case "$(qget v)" in on) rm -f "$STATE/pointerhide-off"; ( setsid sh "$D/pointerhide.sh" start </dev/null >/dev/null 2>&1 & );; off) touch "$STATE/pointerhide-off"; sh "$D/pointerhide.sh" stop >/dev/null 2>&1;; esac

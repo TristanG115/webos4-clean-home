@@ -24,7 +24,7 @@ var DEFAULTS = {
   weather: {mode: 'auto', zip: '', unit: 'F'},
   clock24: false,
   bg: {on: true, everyMin: 10},
-  saver: {on: true, idleMin: 2, photos: true, slideSec: 300, weather: true, dim: 20, backlight: 40},
+  saver: {on: true, idleMin: 2, photos: true, slideSec: 300, weather: true, dim: 20, level: 15},
   ui: {hideCursor: true},
   dock: ['netflix','youtube.leanback.v4','hulu','com.disney.disneyplus-prod'],
   hide: ['webos.day','com.webos.app.homeconnect','com.webos.app.home','com.webos.app.fullhome']
@@ -140,7 +140,7 @@ function wxRender(){
   var d = wxDecode(wx.code, wx.day), now = new Date(), hl = wx.hi != null ? 'H ' + Math.round(wx.hi) + '°  L ' + Math.round(wx.lo) + '°  ·  ' : '';
   $('wicon').innerHTML = WX[d[0]] || '';
   $('wtemp').innerHTML = Math.round(wx.temp) + '°<small>' + d[1] + '</small>';
-  $('wdesc').textContent = fmtShort(now) + '  ·  ' + hl + wx.place;
+  $('wdesc').textContent = hl + wx.place;
   $('weather').className = 'on';
   var w = $('sinfo').childNodes[2];
   w.innerHTML = (WX[d[0]] || '') + '<span>' + Math.round(wx.temp) + '° ' + d[1] + '</span><span class="p">' + hl + wx.place + '</span>';
@@ -323,14 +323,14 @@ function showNext(){
   im.src = src;
 }
 function drift(){
-  var s = $('sinfo'); s.style.left = (3 + Math.random() * 45) + 'rem'; s.style.bottom = (3 + Math.random() * 28) + 'rem';
-  driftT = setTimeout(drift, 60000);
+  var s = $('sinfo'); s.style.left = (3 + Math.random() * 40) + 'rem'; s.style.bottom = (3 + Math.random() * 40) + 'rem';
+  driftT = setTimeout(drift, 30000);
 }
 // the TV's real backlight: lowered while the screensaver runs (tv/backlight.sh keeps the original and restores it in five independent ways)
 var blOn = false, blT = null;
 function blDim(){
-  var p = S.saver.backlight === undefined ? 40 : S.saver.backlight; if (p >= 100 || MOCK) return;
-  blOn = true; api('/api/backlight?v=dim&pct=' + p, noop, 15000);
+  var p = S.saver.level === undefined ? 15 : S.saver.level; if (p >= 100 || MOCK) return;
+  blOn = true; api('/api/backlight?v=dim&level=' + p, noop, 15000);
   clearInterval(blT); blT = setInterval(function(){ if (saverOn) api('/api/backlight?v=hold', noop); }, 60000);
 }
 function blRestore(){ clearInterval(blT); if (blOn) { blOn = false; api('/api/backlight?v=restore', noop, 15000); } }
@@ -483,6 +483,10 @@ function sld(label, desc, min, max, step, get, set){ return {type: 'slider', lab
 function inf(label, value, desc){ return {type: 'info', label: label, value: value, desc: desc}; }
 function act(label, desc, run, val){ return {type: 'action', label: label, desc: desc, run: run, val: val}; }
 function head(label){ return {type: 'head', label: label}; }
+// the ONE backlight control: applied to every input, app and picture mode (brightness.sh). LG's own "Backlight" slider is hidden because it only ever changed the screen you were on.
+function brSld(label){ return sld(label, 'Backlight for every input and app, 100 = full. The screensaver has its own, lower setting under Home & Screensaver. LG keeps a separate backlight per input; this sets them all and keeps them there.', 5, 100, 5,
+  function(){ var n = parseInt(BRV, 10); return isNaN(n) ? 100 : n; },
+  function(v){ BRV = String(v); clearTimeout(brSld.t); brSld.t = setTimeout(function(){ api('/api/brightness?v=' + v, function(err){ toast(err ? 'Could not change that' : 'Backlight ' + v); }, 70000); }, 700); }); }
 function optsOf(it){ return typeof it.opts === 'function' ? it.opts() : it.opts; }
 // rows backed by LG's settings service; a row disappears when the TV does not have that key for the current input / picture mode
 function lgTgl(cat, key, label, desc, onv, offv){ onv = onv || 'on'; offv = offv || 'off';
@@ -514,7 +518,7 @@ function num(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 cats = [
   {id: 'quick', name: 'Quick settings', icon: 'bolt', title: 'Quick settings', desc: 'The same shortcuts as LG’s quick panel: picture mode, aspect ratio, sound mode, sound out, sleep timer, network, and all settings.', info: '/api/net',
     lg: [['picture', ['pictureMode','aspectRatio']], ['sound', ['soundMode','soundOutput']], ['time', ['sleepTimer']]], build: function(){ var j = this.data || {}, w = j.wired || {}, f = j.wifi || {}; return [
-    chc('Same brightness everywhere', 'LG keeps a separate backlight for every input and app, so dimming one screen leaves the others bright. Pick a value and it is applied on every input and app (also in the dark: choose Lowest at night). Off puts each input back to its own value.', [['off','Off: each input keeps its own'],['5','Lowest'],['25','25 %'],['50','50 %'],['75','75 %'],['100','Full']], function(){ return BRV === null ? 'off' : BRV; }, function(v){ BRV = v; api('/api/brightness?v=' + v, function(){ toast(v === 'off' ? 'Each input has its own brightness again' : 'Same brightness everywhere'); }, 70000); }),
+    brSld('Backlight (all inputs and apps)'),
     lgChc('picture', 'pictureMode', 'Picture mode', '', picModes, true),
     lgChc('picture', 'aspectRatio', 'Aspect ratio', '', ASPECTS),
     lgChc('sound', 'soundMode', 'Sound mode', '', SOUNDMODES),
@@ -532,7 +536,7 @@ cats = [
     chc('Photo changes every', 'Slow is easier on the eyes and on the TV', [[12,'12 s'],[30,'30 s'],[60,'1 min'],[120,'2 min'],[300,'5 min'],[600,'10 min'],[900,'15 min']], function(){ return S.saver.slideSec; }, function(v){ setPath('saver.slideSec', v); }),
     tgl('Show weather in screensaver', '', function(){ return S.saver.weather; }, function(b){ setPath('saver.weather', b); wxRender(); }),
     sld('Screensaver dimming', 'Darkens the photo so the screensaver is easy on the eyes; the clock stays bright. 0 = no dimming', 0, 80, 5, function(){ return S.saver.dim === undefined ? 30 : S.saver.dim; }, function(v){ setPath('saver.dim', v); }),
-    sld('Screensaver backlight', function(){ var b = parseInt(BRV, 10) || 100, p = S.saver.backlight === undefined ? 40 : S.saver.backlight; return 'How much of your normal backlight the screensaver keeps (100 = unchanged). With your brightness at ' + b + ' that is about ' + Math.max(5, Math.round(b * p / 100)) + ' on LG’s 0–100 scale. Always restored when you wake the TV.'; }, 10, 100, 5, function(){ return S.saver.backlight === undefined ? 40 : S.saver.backlight; }, function(v){ setPath('saver.backlight', v); }),
+    sld('Screensaver backlight', function(){ var b = parseInt(BRV, 10); b = isNaN(b) ? 100 : b; return 'Backlight while the screensaver runs, on LG’s 0–100 scale (never brighter than your normal ' + b + '). Put back as soon as you wake the TV.'; }, 5, 100, 5, function(){ return S.saver.level === undefined ? 15 : S.saver.level; }, function(v){ setPath('saver.level', v); }),
     tgl('24-hour clock', '', function(){ return S.clock24; }, function(b){ setPath('clock24', b); })
   ]; }},
   {id: 'weather', name: 'Weather', icon: 'cloud', title: 'Weather', desc: 'Free forecasts from Open-Meteo.', build: function(){ return [
@@ -554,8 +558,8 @@ cats = [
   {id: 'picture', name: 'Picture', icon: 'pic', title: 'Picture', desc: 'Applies to what is on screen now: the current input and picture mode.',
     lg: [['picture', ['pictureMode','backlight','contrast','brightness','sharpness','color','tint','colorTemperature','energySaving','dynamicContrast','localDimming','peakBrightness','superResolution','noiseReduction','mpegNoiseReduction','gamma','colorGamut','blackLevel','dynamicColor','hdrDynamicToneMapping','truMotionMode','truMotionJudder','truMotionBlur','motionEyeCare','eyeComfortMode','aspectRatio']]], build: function(){ return [
     lgChc('picture', 'pictureMode', 'Picture mode', '', picModes, true),
-    lgSld('picture', 'backlight', 'Backlight', '', 0, 100, 1), lgSld('picture', 'contrast', 'Contrast', '', 0, 100, 1),
-    lgSld('picture', 'brightness', 'Brightness', '', 0, 100, 1), lgSld('picture', 'sharpness', 'Sharpness', '', 0, 50, 1),
+    brSld('Backlight'), lgSld('picture', 'contrast', 'Contrast', '', 0, 100, 1),
+    lgSld('picture', 'brightness', 'Black level', 'LG calls this “Brightness”: how dark the darkest parts of the picture are. It is not the backlight.', 0, 100, 1), lgSld('picture', 'sharpness', 'Sharpness', '', 0, 50, 1),
     lgSld('picture', 'color', 'Color', '', 0, 100, 1), lgSld('picture', 'tint', 'Tint', '', -50, 50, 1), lgSld('picture', 'colorTemperature', 'Color temperature', 'Negative = warmer, positive = cooler', -50, 50, 1),
     lgChc('picture', 'energySaving', 'Energy saving', '', [['off','Off'],['auto','Auto'],['min','Minimum'],['med','Medium'],['max','Maximum'],['screen_off','Screen off']]),
     head('Picture options'),
@@ -584,9 +588,9 @@ cats = [
     lgTgl('sound', 'startupSound', 'Startup sound', ''), lgTgl('sound', 'tvPowerSound', 'Power-on sound', '')
   ]; }},
   {id: 'power', name: 'Power & timers', icon: 'power', title: 'Power & timers', desc: '',
-    lg: [['option', ['quickStartMode','standByLight','logoLight','powerOnLight']], ['general', ['homeAutoLaunch']], ['time', ['autoClock','daylightSaving','sleepTimer','noOperationAutoOff','automaticStandBy','noSignalAutoOff','timeZone']]], info: '/api/poweron', build: function(){ var self = this, tz = (LGC.time || {}).timeZone; return [
+    lg: [['option', ['quickStartMode','standByLight','logoLight','powerOnLight']], ['general', ['homeAutoLaunch']], ['time', ['autoClock','daylightSaving','sleepTimer','noOperationAutoOff','automaticStandBy','noSignalAutoOff','timeZone']]], info: '/api/poweron', build: function(){ var self = this, tz = (LGC.time || {}).timeZone; if (!self.appsAsked) { self.appsAsked = true; api('/api/apps', function(e, j){ if (j && j.launchPoints) { self.apps = j.launchPoints; if (settingsOn && cats[catIdx].id === 'power') renderCat(false); } }, 15000); } return [
     lgTgl('option', 'quickStartMode', 'Quick Start', 'Turns on in a couple of seconds instead of a full start. Uses a little more power while off. On is recommended: it works with this launcher and makes no difference to LG updates being blocked.'),
-    chc('When the TV turns on, go to', 'Home is our Home screen. “Where it was” is LG’s own behaviour (the input or app you left). Applies to Quick Start wake-ups and to a full start.', [['home','Home (recommended)'],['last','Where it was'],['hdmi1','HDMI 1'],['hdmi2','HDMI 2'],['hdmi3','HDMI 3'],['hdmi4','HDMI 4']], function(){ return (self.data && self.data.dest) || 'home'; }, function(v){ self.data = self.data || {}; self.data.dest = v; api('/api/poweron?v=' + v, function(err, r){ toast(err ? 'Could not change that' : 'Saved'); }); }),
+    chc('When the TV turns on, go to', 'Home is our Home screen. “Where it was” is LG’s own behaviour (the input or app you left). Applies to Quick Start wake-ups and to a full start.', function(){ var o = [['home','Home (recommended)'],['last','Where it was'],['hdmi1','HDMI 1'],['hdmi2','HDMI 2'],['hdmi3','HDMI 3'],['hdmi4','HDMI 4']], cur = self.data && self.data.dest, seen = {}; (self.apps || []).filter(function(a){ return a.id && a.title && a.id !== 'com.webos.app.home' && a.id !== 'com.webos.app.fullhome' && (S.hide || []).indexOf(a.id) < 0 && !seen[a.id] && (seen[a.id] = 1); }).sort(function(x, y){ return x.title < y.title ? -1 : 1; }).forEach(function(a){ o.push(['app:' + a.id, 'App: ' + a.title]); }); if (cur && cur.indexOf('app:') === 0 && !seen[cur.slice(4)]) o.push([cur, 'App: ' + cur.slice(4)]); return o; }, function(){ return (self.data && self.data.dest) || 'home'; }, function(v){ self.data = self.data || {}; self.data.dest = v; api('/api/poweron?v=' + v, function(err, r){ toast(err ? 'Could not change that' : 'Saved'); }); }),
     lgTgl('option', 'standByLight', 'Standby light', ''), lgChc('option', 'logoLight', 'LG logo light', '', LEVELS), lgTgl('option', 'powerOnLight', 'Power-on light', ''),
     head('Timers'),
     lgChc('time', 'sleepTimer', 'Sleep timer', 'Turns the TV off after this time', SLEEPS),

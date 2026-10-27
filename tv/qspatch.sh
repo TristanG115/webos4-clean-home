@@ -22,7 +22,9 @@ KF=/usr/lib/qt5/qml/KeyFilters; YS=/usr/lib/qt5/qml/YSM; SN=$D/qs; PD=/tmp/keyfi
 FLAG=$STATE/qspatch-on; TRY=$STATE/qspatch.trying; VERIFIED=$STATE/qspatch.verified; BOOTMODE=0
 sum_built() { for e in $(cat $PD/list); do cat $PD/${e%%:*}; done | md5sum | cut -d' ' -f1; }
 FILES="$KF/appLaunch.js $KF/systemUi.js"
-svc_up() { initctl status "$1" 2>/dev/null | grep -q "start/running"; }
+svc_up() { svc_running "$1"; }
+# the compositor restart below is Upstart-specific (initctl restart, the wam-start event): on a systemd TV the patch is not applied at all until the unit names are confirmed
+[ "$INIT" = upstart ] || case ${1:-status} in apply|reapply|boot|undo) echo "qspatch: needs an Upstart TV (this one: $INIT), not applying"; exit 0;; esac
 patched() { is_mounted $KF/appLaunch.js; }
 
 bal() { echo $(( $(tr -cd '{' < $1 | wc -c) - $(tr -cd '}' < $1 | wc -c) )) ; }     # braces open minus closed
@@ -71,11 +73,11 @@ ui_healthy() { # the compositor, the web app manager, the app manager and Home a
 restart_ui() { # restart the compositor and bring everything back; 0 = healthy
   log "qspatch: restarting surface-manager"
   rm -f /tmp/qs-loaded-appLaunch /tmp/qs-loaded-systemUi
-  initctl restart surface-manager >/dev/null 2>&1
+  svc_restart surface-manager
   i=0; while [ $i -lt 30 ]; do sleep 2; i=$((i+2)); svc_up surface-manager && break; done
   sleep 4
   svc_up WebAppMgr || { log "qspatch: WebAppMgr not up, emitting wam-start"; initctl emit --no-wait wam-start >/dev/null 2>&1; sleep 5; }
-  svc_up WebAppMgr || { initctl start WebAppMgr >/dev/null 2>&1; sleep 5; }
+  svc_up WebAppMgr || { svc_start WebAppMgr; sleep 5; }
   i=0; while [ $i -lt 60 ]; do ui_healthy && break; sleep 3; i=$((i+3)); done
   ui_healthy || return 1
   [ "$BOOTMODE" = 1 ] && sh "$D/cover.sh" show >/dev/null 2>&1        # the compositor restart killed the start-up cover: put it back

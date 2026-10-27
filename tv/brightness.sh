@@ -37,7 +37,9 @@ case ${1:-status} in
   seed) [ -s "$F" ] || exit 0; mkdir "$LOCK" 2>/dev/null || exit 0; trap 'rmdir "$LOCK" 2>/dev/null' EXIT
     t=$(cat "$F"); n=0; s0=$(cut -d. -f1 /proc/uptime)
     for i in $INPUTS; do for m in $MODES; do
-      [ -s "$F" ] && [ "$(cat "$F")" = "$t" ] || exit 0                                  # switched off or changed meanwhile: a new seed will follow
+      # switched off: stop. Changed meanwhile (the slider was moved again): hand over to a fresh seed of the new value (a call made while this one runs found the lock taken and gave up)
+      if [ ! -s "$F" ]; then exit 0; fi
+      if [ "$(cat "$F")" != "$t" ]; then rmdir "$LOCK" 2>/dev/null; trap - EXIT; exec sh "$0" seed; fi
       d="{\"pictureMode\":\"$m\",\"input\":\"$i\",\"_3dStatus\":\"2d\"}"
       [ -e /tmp/saver-on ] && [ "$d" = "$(cat "$STATE/backlight.dim" 2>/dev/null)" ] && continue      # the context the screensaver is dimming right now
       v=$(getbl "$d"); [ -n "$v" ] && [ "$v" != "$t" ] || continue

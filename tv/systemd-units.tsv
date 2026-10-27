@@ -1,0 +1,13 @@
+# systemd-units.tsv - ONLY used on TVs whose init system is systemd (webOS 5 and newer). Format:  job|unit   (one per line, "unit" with or without ".service")
+# The scripts name services by their Upstart job name (webOS 4.x). On systemd a name that is not listed here is tried as "<job>.service". Fill in what
+# tools/list-services.sh shows on the TV; a unit that does not exist is skipped (svc_known), never an error. NOTHING BELOW IS VERIFIED ON A REAL SYSTEMD TV:
+# the lines are guesses to start from, kept commented out until someone has checked them. Do not enable one without reading what the unit does (tools/list-services.sh).
+#
+# remotelogger|remotelogger
+# nudge|nudge
+# contentminer|contentminer
+# iepg|iepg
+# broadcast-conf-downloader|broadcast-conf-downloader
+# voiceinput|voiceinput
+# voiceconductor|voiceconductor
+# update|update

@@ -29,19 +29,19 @@ body.hasbg #time,body.hasbg #wtemp{text-shadow:0 .1rem .8rem rgba(0,0,0,.6)}
 #view{position:fixed;left:0;top:0;width:100%;height:100%;will-change:transform;transition:transform .35s ease}
 body.hasbg .hbtn{background:rgba(8,10,15,.55);color:#cfd6e4}
 body.hasbg .hbtn.foc{color:#fff}
-#header{height:11.6rem;padding:2.6rem 6rem 0 6rem;display:flex;align-items:flex-start;justify-content:space-between}
-#hero{height:23rem}
+#header{height:12.8rem;padding:2.6rem 6rem 0 6rem;display:flex;align-items:flex-start;justify-content:space-between}
+#hero{height:21.8rem}
 #clock{display:flex;flex-direction:column}
-#time{font-size:4.6rem;font-weight:300;letter-spacing:-.05rem;line-height:1}
-#time small{font-size:1.7rem;margin-left:.6rem;color:var(--dim);font-weight:400;letter-spacing:0}
-#date{font-size:1.7rem;color:var(--dim);margin-top:.7rem}
+#time{font-size:5.6rem;font-weight:300;letter-spacing:-.05rem;line-height:1}
+#time small{font-size:2.1rem;margin-left:.6rem;color:var(--dim);font-weight:400;letter-spacing:0}
+#date{font-size:2.2rem;color:var(--dim);margin-top:.7rem}
 #right{display:flex;align-items:center}
 #weather{display:flex;align-items:center;margin-right:3rem;opacity:0;transition:opacity .6s}
 #weather.on{opacity:1}
-#weather svg{width:3.8rem;height:3.8rem;margin-right:1.1rem}
-#wtemp{font-size:2.8rem;font-weight:300;line-height:1}
-#wtemp small{font-size:1.3rem;color:var(--dim);margin-left:.8rem;font-weight:400}
-#wdesc{font-size:1.25rem;color:var(--dim);margin-top:.4rem;white-space:nowrap}
+#weather svg{width:4.6rem;height:4.6rem;margin-right:1.1rem}
+#wtemp{font-size:3.5rem;font-weight:300;line-height:1}
+#wtemp small{font-size:1.7rem;color:var(--dim);margin-left:.8rem;font-weight:400}
+#wdesc{font-size:1.65rem;color:var(--dim);margin-top:.4rem;white-space:nowrap}
 .hbtn{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;width:6.4rem;height:5.6rem;margin-left:1.2rem;border-radius:1.4rem;background:rgba(255,255,255,.08);color:var(--dim);font-size:1.05rem;transition:transform .18s ease,color .15s;will-change:transform}
 .hbtn svg{width:2.4rem;height:2.4rem;margin-bottom:.3rem;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .ring{position:absolute;left:-.35rem;top:-.35rem;right:-.35rem;bottom:-.35rem;border:.28rem solid #fff;border-radius:inherit;opacity:0;transition:opacity .15s;pointer-events:none}
@@ -68,17 +68,20 @@ body.hasbg .hbtn.foc{color:#fff}
 #saver.on{opacity:1;visibility:visible;transition:opacity 1.2s ease}
 #saver .stage{opacity:0;transition:opacity 1.6s ease}
 #saver .stage.show{opacity:1}
-#saver.nophoto{background:radial-gradient(ellipse at 30% 80%,#16213a 0%,#06080d 70%)}
+#saver.nophoto{background:#04060a}
+#sglow{display:none;position:absolute;left:-35%;top:-45%;width:170%;height:190%;z-index:0;pointer-events:none;will-change:transform;background:radial-gradient(circle at 50% 50%,rgba(38,58,104,.55) 0,rgba(14,22,42,.38) 20%,rgba(0,0,0,0) 46%)}
+#saver.nophoto #sglow{display:block;animation:sglide 200s linear infinite}
+@keyframes sglide{0%{transform:translate3d(-14%,-12%,0)}25%{transform:translate3d(14%,-4%,0)}50%{transform:translate3d(5%,14%,0)}75%{transform:translate3d(-14%,5%,0)}100%{transform:translate3d(-14%,-12%,0)}}
 #sdim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:1;background:#000;opacity:0;pointer-events:none;transition:opacity 1.2s ease}
 #scrimS{position:absolute;left:0;bottom:0;width:100%;height:24rem;z-index:2;background:linear-gradient(to top,rgba(0,0,0,.65),rgba(0,0,0,0))}
 #sinfo{position:absolute;left:4.5rem;bottom:3.6rem;z-index:3;text-shadow:0 .1rem .7rem rgba(0,0,0,.75);transition:left 2s ease,bottom 2s ease}
-#sinfo .t{font-size:7.2rem;font-weight:300;line-height:1;letter-spacing:-.15rem}
-#sinfo .t small{font-size:2.4rem;margin-left:.8rem;color:#ddd;letter-spacing:0;font-weight:400}
-#sinfo .d{font-size:2.2rem;margin-top:.8rem;color:#e6e9f0}
-#sinfo .w{display:none;align-items:center;margin-top:1.4rem;font-size:2rem;color:#e6e9f0}
+#sinfo .t{font-size:9.8rem;font-weight:300;line-height:1;letter-spacing:-.15rem}
+#sinfo .t small{font-size:3.2rem;margin-left:.8rem;color:#ddd;letter-spacing:0;font-weight:400}
+#sinfo .d{font-size:3rem;margin-top:1rem;color:#e6e9f0}
+#sinfo .w{display:none;align-items:center;margin-top:1.8rem;font-size:2.8rem;color:#e6e9f0}
 #sinfo .w.on{display:flex}
-#sinfo .w svg{width:4.2rem;height:4.2rem;margin-right:1.2rem}
-#sinfo .w .p{color:#b9c0d0;font-size:1.5rem;margin-left:1.4rem}
+#sinfo .w svg{width:5.6rem;height:5.6rem;margin-right:1.5rem}
+#sinfo .w .p{color:#b9c0d0;font-size:2.1rem;margin-left:1.8rem}
 /* modal list (Inputs / Network / choices) */
 #panel{position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(6,8,12,.86);display:none;z-index:60;align-items:center;justify-content:center}
 #panel.on{display:flex}
@@ -90,7 +93,7 @@ body.hasbg .hbtn.foc{color:#fff}
 #phint{margin-top:1.4rem;font-size:1.2rem;color:var(--dim)}
 #toast{position:fixed;left:50%;bottom:3rem;transform:translateX(-50%);padding:1rem 2rem;border-radius:1rem;background:rgba(255,255,255,.16);font-size:1.4rem;opacity:0;transition:opacity .3s;z-index:90;pointer-events:none;max-width:90%;text-align:center}
 #toast.on{opacity:1}
-#updpill{position:fixed;left:6rem;top:12.4rem;padding:.7rem 1.6rem;border-radius:2rem;background:rgba(255,255,255,.14);font-size:1.25rem;color:#fff;opacity:0;transition:opacity .4s;pointer-events:none;white-space:nowrap;z-index:20}
+#updpill{position:fixed;left:6rem;top:13.6rem;padding:.7rem 1.6rem;border-radius:2rem;background:rgba(255,255,255,.14);font-size:1.25rem;color:#fff;opacity:0;transition:opacity .4s;pointer-events:none;white-space:nowrap;z-index:20}
 #updpill.on{opacity:1}
 #updpill b{font-weight:600}
 /* QR + keypad modals */
@@ -196,7 +199,7 @@ body.mode-settings .gt{width:11.4rem;height:6.5rem;margin-right:.9rem;margin-bot
   <div class="row"><div class="rowlabel">Favorites</div><div id="dock"></div></div>
   <div class="row"><div class="rowlabel">Apps</div><div id="grid"></div></div>
 </div>
-<div id="saver"><div id="sdim"></div><div id="scrimS"></div>
+<div id="saver"><div id="sglow"></div><div id="sdim"></div><div id="scrimS"></div>
   <div id="sinfo"><div class="t"></div><div class="d"></div><div class="w"></div></div></div>
 <div id="panel"><div id="pbox"><div id="ptitle"></div><div id="plist"></div><div id="phint">OK to select &nbsp;&middot;&nbsp; Back to close</div></div></div>
 <div id="settings">

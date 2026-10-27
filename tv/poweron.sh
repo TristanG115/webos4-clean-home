@@ -1,19 +1,22 @@
 #!/bin/sh
-# poweron.sh get | set <home|last|hdmi1..hdmi4> | go [wake] | boot <app the TV started on> - where the TV goes when it is turned on (Settings -> Power & timers).
+# poweron.sh get | set <home|last|hdmi1..hdmi4|app:<id>> | go [wake] | boot <app the TV started on> - where the TV goes when it is turned on (Settings -> Power & timers).
 #   home   our Home screen (default). Also switches LG's own "Show Home when the TV turns on" (general.homeAutoLaunch) on, so LG helps too.
 #   last   LG's own behaviour: whatever input or app was in front when you turned it off.
 #   hdmi1..hdmi4   that input.
+#   app:<id>       any installed app (its app id, e.g. app:netflix), picked from the list in Settings.
 # `go wake` is run by lastapp.sh when the power service reports the TV coming back from standby / screen off (Quick Start wake-ups never restart anything, so no boot hook runs);
 # `boot` is run by boot.sh at the end of a full start, with the app the TV came up on (LG starts on the last input).
 # Our own handler enforces the choice instead of trusting LG's switch, which is not honoured on every wake-up. Nothing happens while DISABLE exists.
 . /media/developer/tv-debloat/common.sh
 CONF=$STATE/poweron.conf
-dest() { d=$(cat "$CONF" 2>/dev/null); case $d in home|last|hdmi1|hdmi2|hdmi3|hdmi4) echo "$d";; *) echo home;; esac; }
-target() { case $1 in home) echo "$HOME_ID";; hdmi[1-4]) echo "com.webos.app.$1";; *) echo "";; esac; }
+okid() { printf %s "$1" | grep -Eq '^[A-Za-z0-9._-]{1,80}$'; }
+dest() { d=$(cat "$CONF" 2>/dev/null); case $d in home|last|hdmi1|hdmi2|hdmi3|hdmi4) echo "$d";; app:*) okid "${d#app:}" && echo "$d" || echo home;; *) echo home;; esac; }
+target() { case $1 in home) echo "$HOME_ID";; hdmi[1-4]) echo "com.webos.app.$1";; app:*) echo "${1#app:}";; *) echo "";; esac; }
 fgid() { cat /tmp/fgnow 2>/dev/null; }
 case ${1:-get} in
   get) printf '{"dest":"%s"}' "$(dest)";;
-  set) case $2 in home|last|hdmi1|hdmi2|hdmi3|hdmi4) echo "$2" > "$CONF"; log "poweron: destination $2"
+  set) case $2 in app:*) okid "${2#app:}" || { echo '{"error":"bad app id"}'; exit 1; };; esac
+       case $2 in home|last|hdmi1|hdmi2|hdmi3|hdmi4|app:*) echo "$2" > "$CONF"; log "poweron: destination $2"
          # LG's own switch follows: on only for Home
          v=off; [ "$2" = home ] && v=on
          lun luna://com.webos.settingsservice/setSystemSettings "{\"category\":\"general\",\"settings\":{\"homeAutoLaunch\":\"$v\"}}" >/dev/null

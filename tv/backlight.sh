@@ -1,7 +1,7 @@
 #!/bin/sh
-# backlight.sh dim <percent> | hold | restore | sweep | status - lower the TV's REAL backlight while the screensaver runs, and always put it back.
-# The screensaver's software dim layer only darkens pixels; an LCD's backlight stays at full power. This lowers LG's picture.backlight for the picture
-# context that is active when the screensaver starts (Home = input "default") to <percent> of its value, never below 5, and remembers the original value AND
+# backlight.sh dim <level> | hold | restore | sweep | status - lower the TV's REAL backlight while the screensaver runs, and always put it back.
+# The screensaver's software dim layer only darkens pixels; an LCD's backlight stays at full power. This sets LG's picture.backlight for the picture
+# context that is active when the screensaver starts (Home = input "default") to <level> on LG's 0-100 scale (an absolute value, 5-100, never above the normal one), and remembers the original value AND
 # that context (LG keeps backlight per input / picture mode: restoring while another input is in front would otherwise set the wrong one).
 # Safety: the original is restored (1) when the screensaver stops (page -> /api/backlight?v=restore), (2) when anything other than Home comes to the front
 # (lastapp.sh), (3) at boot (boot.sh), (4) by the sweep when the screensaver has not refreshed /tmp/saver-on for 3 minutes (page crashed, TV powered off),
@@ -15,9 +15,9 @@ cur_dim() { raw | sed -n 's/.*"dimension":\({[^}]*}\).*/\1/p'; }
 set_bl() { if [ -n "$2" ]; then d="\"dimension\":$2,"; else d=""; fi
   lun luna://com.webos.settingsservice/setSystemSettings "{\"category\":\"picture\",$d\"settings\":{\"backlight\":\"$1\"}}" | grep -q '"returnValue": *true'; }
 case ${1:-status} in
-  dim)  pct=${2:-50}; case $pct in ''|*[!0-9]*) exit 1;; esac; [ "$pct" -ge 10 ] || pct=10; [ "$pct" -le 100 ] || pct=100
+  dim)  lvl=${2:-15}; case $lvl in ''|*[!0-9]*) exit 1;; esac; [ "$lvl" -ge 5 ] || lvl=5; [ "$lvl" -le 100 ] || lvl=100      # an absolute level on LG's 0-100 scale (never brighter than the normal one, below)
         if [ ! -e "$ORIG" ]; then cur=$(get); [ -n "$cur" ] || exit 1; cur_dim > "$DIMF"; echo "$cur" > "$ORIG"; fi
-        o=$(cat "$ORIG"); t=$((o * pct / 100)); [ $t -ge 5 ] || t=5; [ $t -le $o ] || t=$o
+        o=$(cat "$ORIG"); t=$lvl; [ $t -ge 5 ] || t=5; [ $t -le $o ] || t=$o
         touch "$ON"; { set_bl $t "$(cat "$DIMF" 2>/dev/null)" && log "backlight: $o -> $t"; };;
   hold) [ -e "$ORIG" ] && touch "$ON";;
   restore) if [ -e "$ORIG" ]; then o=$(cat "$ORIG"); if set_bl "$o" "$(cat "$DIMF" 2>/dev/null)"; then rm -f "$ORIG" "$DIMF"; log "backlight: restored to $o"; fi; fi; rm -f "$ON";;

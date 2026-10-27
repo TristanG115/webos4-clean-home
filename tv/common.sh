@@ -6,6 +6,7 @@ STATE=$D/state
 MARK="# tv-debloat"
 LOGF=$STATE/tv-debloat.log
 mkdir -p "$STATE" 2>/dev/null
+. "$D/init.sh"        # INIT, svc_known / svc_running / svc_stop / svc_start / svc_restart: Upstart (webOS 4) or systemd (webOS 5+)
 up() { cut -d' ' -f1 /proc/uptime; }
 log() {
   echo "$(up) $(basename "$0")[$$]: $*" >> "$LOGF" 2>/dev/null

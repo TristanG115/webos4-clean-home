@@ -32,7 +32,6 @@ if [ -n "$PHASE" ]; then
   done | tr '\n' ' ')
 fi
 
-svc_running() { initctl status "$1" 2>/dev/null | grep -q "start/running"; }
 LGSET() { lun luna://com.webos.settingsservice/setSystemSettings "$1" >/dev/null; }
 
 # --- hosts (ad & tracker block lists live in blocklist.sh) ----------------------------------------------------------------
@@ -44,13 +43,14 @@ do_hosts() {
     status) grep -q "$MARK" /etc/hosts && echo "hosts: BLOCKING" || echo "hosts: off";;
   esac
 }
-# --- Upstart jobs --------------------------------------------------------------------------------------------------------
-do_upstart() { # $1 = job
+# --- services (Upstart jobs on webOS 4, systemd units on webOS 5+: init.sh) --------------------------------------------------------------------------------------------------------
+do_upstart() { # $1 = job (its Upstart name; init.sh maps it to the systemd unit)
   j=$1
+  svc_known $j || { [ $ACTION = status ] && echo "$j: not present on this TV"; return 0; }       # a service this TV does not have is skipped, never an error
   case $ACTION in
-    apply|sweep) if svc_running $j; then touch "$STATE/stopped-$j"; initctl stop $j >/dev/null 2>&1; fi
+    apply|sweep) if svc_running $j; then touch "$STATE/stopped-$j"; svc_stop $j; fi
            [ $ACTION = apply ] && { svc_running $j && echo "$j: still running" || echo "$j: stopped"; };;
-    undo)  if [ -e "$STATE/stopped-$j" ] || ! svc_running $j; then initctl start $j >/dev/null 2>&1; rm -f "$STATE/stopped-$j"; fi
+    undo)  if [ -e "$STATE/stopped-$j" ] || ! svc_running $j; then svc_start $j; rm -f "$STATE/stopped-$j"; fi
            svc_running $j && echo "$j: running" || echo "$j: not running (starts on its own trigger)";;
     status) svc_running $j && echo "$j: running" || echo "$j: STOPPED";;
   esac
@@ -220,13 +220,13 @@ do_vmtune() {
 do_updates() {
   case $ACTION in
     apply|sweep) upd_settings_apply; upd_hosts_apply
-           if svc_running update; then touch "$STATE/stopped-update"; initctl stop update >/dev/null 2>&1; fi
+           if svc_running update; then touch "$STATE/stopped-update"; svc_stop update; fi
            upd_stub_ok || stub_bin apply update >/dev/null
            [ $ACTION = apply ] && echo "updates: blocked (settings, hosts, update service, program stub)";;
     undo)  # only the revert path calls this; the Homebrew block lines stay either way
            grep -v "$UPD_MARK" /etc/hosts > /tmp/hosts.new && cat /tmp/hosts.new > /etc/hosts; rm -f /tmp/hosts.new
            stub_bin undo update >/dev/null
-           if [ -e "$STATE/stopped-update" ] || ! svc_running update; then initctl start update >/dev/null 2>&1; rm -f "$STATE/stopped-update"; fi
+           if [ -e "$STATE/stopped-update" ] || ! svc_running update; then svc_start update; rm -f "$STATE/stopped-update"; fi
            echo "updates: our extra blocks removed (automatic updates stay off in LG's settings; Homebrew's own server block stays)";;
     status) n=0; upd_hosts_present && n=$((n+1)); svc_running update || n=$((n+1)); upd_settings_ok && n=$((n+1)); upd_stub_ok && n=$((n+1)); [ $n = 4 ] && echo "updates: BLOCKED (4/4)" || echo "updates: partly blocked ($n/4)";;
   esac

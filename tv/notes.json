@@ -1,5 +1,18 @@
 [
   {
+    "v": "2026.10.27.6",
+    "date": "2026-10-27",
+    "title": "Pick an app for power-on, one backlight control, bigger text, burn-in protection",
+    "notes": [
+      "New: \"When the TV turns on, go to\" can now be any app installed on the TV (for example Netflix), not only Home or an HDMI input.",
+      "Changed: there is now ONE backlight slider (Settings > Picture, and in Quick settings). It sets the backlight for every input and app and keeps it there; LG's own per-input Backlight slider is hidden because it only changed the screen you were on. LG's \"Brightness\" slider is now called \"Black level\" so it is not mistaken for the backlight.",
+      "Changed: the screensaver backlight is now a level on LG's 0-100 scale (default 15) instead of a percentage of your normal backlight, so a bright TV can have a dim screensaver. It is never brighter than your normal setting.",
+      "Bigger text: the screensaver's clock, date and weather are about 35% larger, and the clock and weather at the top of Home are larger too. The date is no longer shown twice on Home.",
+      "New: when there are no photos, the screensaver slowly moves a very dark glow across the whole screen and moves the clock to a new place every 30 seconds, so no part of the screen shows the same thing for long.",
+      "For other TVs: the code that stops LG's background services now has a layer for newer TVs that use systemd (webOS 5 and up). It is tested with simulated programs, not yet on a real newer TV."
+    ]
+  },
+  {
     "v": "2026.10.27.5",
     "date": "2026-10-27",
     "title": "Choose where the TV starts, calmer screensaver, self-check",
