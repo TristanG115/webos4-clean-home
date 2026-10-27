@@ -141,6 +141,19 @@ case "$P" in
   /api/update/rollback) ( setsid sh "$D/selfupdate.sh" rollback </dev/null >/dev/null 2>&1 & ); hdr "200 OK"; echo '{"started":true}';;
   /api/update/conf) case "$(qget k)" in mode|every|startup|ack) timeout -t 10 sh "$D/selfupdate.sh" conf "$(qget k)" "$(qget v)" </dev/null >/dev/null 2>&1;; esac
                 hdr "200 OK"; echo '{"ok":true}';;
+  # Settings key while Home is in front: the Home page already contains the whole Settings UI, so it opens it in place (no second page to create, about 0.9 s saved).
+  # The page keeps one request open on /api/ui/wait; the compositor asks /api/ui/settings-key, which passes "settings" through a FIFO and waits for the page's ack.
+  # {"home":false} (page not listening, not Home, no ack within 0.4 s) makes the compositor open the overlay page as before.
+  /api/ui/wait) F=/tmp/tvd-ui.fifo; [ -p $F ] || mkfifo $F 2>/dev/null; hdr "200 OK"; c=$(timeout -t 100 cat $F 2>/dev/null | head -1); printf '{"cmd":"%s"}' "$(echo "$c" | tr -cd 'a-z')";;
+  /api/ui/ack)  touch /tmp/tvd-ui.ack; hdr "200 OK"; echo '{"ok":true}';;
+  /api/ui/settings-key) F=/tmp/tvd-ui.fifo; fg=$(cat /tmp/fgnow 2>/dev/null); home=false; rm -f /tmp/tvd-ui.ack
+                case "$fg" in ""|"$HOME_ID") if [ -p $F ]; then
+                    timeout -t 1 sh -c "echo settings > $F" </dev/null >/dev/null 2>&1
+                    i=0; while [ $i -lt 8 ]; do [ -e /tmp/tvd-ui.ack ] && { home=true; break; }; usleep 50000; i=$((i+1)); done
+                  fi;; esac
+                up > /tmp/qs-claim          # tell settings-hook.sh the key is handled
+                [ $home = true ] || ( setsid sh "$D/settings-open.sh" launch </dev/null >/dev/null 2>&1 & )      # not Home / page not listening: the overlay page
+                hdr "200 OK"; printf '{"home":%s}' "$home";;
   /api/backlight) case "$(qget v)" in
                   dim) pct=$(qget pct); timeout -t 15 sh "$D/backlight.sh" dim "$pct" </dev/null >/dev/null 2>&1;;
                   hold) sh "$D/backlight.sh" hold </dev/null >/dev/null 2>&1;;

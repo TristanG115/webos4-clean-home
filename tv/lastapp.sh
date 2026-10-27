@@ -149,6 +149,9 @@ lun luna://com.webos.applicationManager/getForegroundAppInfo '{}' | sed -n 's/.*
     luna-send -i luna://com.webos.applicationManager/getAppLifeEvents '{"subscribe":true}' </dev/null 2>/dev/null | while read -r l; do
       ev=$(printf %s "$l" | sed -n 's/.*"event":"\([a-z]*\)".*/\1/p'); [ -n "$ev" ] || continue
       id=$(printf %s "$l" | sed -n 's/.*"appId":"\([^"]*\)".*/\1/p')
+      # LG menus the remote can still open (debloat item lgmenus): close them the moment SAM announces them
+      case "$ev:$id" in splash:com.webos.app.voice|splash:com.webos.app.tvhotkey|splash:com.webos.app.homeconnect|launch:com.webos.app.voice|launch:com.webos.app.tvhotkey|launch:com.webos.app.homeconnect)
+        if [ -e "$STATE/lgmenus.on" ]; then lun luna://com.webos.applicationManager/closeByAppId "{\"id\":\"$id\",\"forceMode\":true}" >/dev/null; log "lastapp: closed LG menu $id"; continue; fi;; esac
       case $ev in
         splash) case "$id" in ''|"$HOME_ID"|"$SET_ID"|"$INP_ID"|com.webos.app.quicksettings|com.webos.app.screensaver*|com.webos.app.notification*|com.webos.app.splash) ;;
                   *) printf '%s|%s|%s' "$id" "$(cat /tmp/fgnow 2>/dev/null)" "$(up)" > /tmp/launching;; esac;;

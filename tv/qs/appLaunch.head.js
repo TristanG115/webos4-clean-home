@@ -42,8 +42,10 @@ function tvdOpenSettings(params) {
         if (t - tvdLastKey < 600) return true;
         tvdLastKey = t;
         tvdApi("/api/qs?m=key");
-        // always "launch": when the overlay is already running WebAppMgr sends the page a relaunch event and the page closes itself (the key toggles)
-        lunaCall.send("com.palm.webappmanager", "/launchApp", TVD_LAUNCH, tvdSettingsDone);
+        // one fire-and-forget request (answers to requests made from here were never seen to arrive): the TV-side API decides. Home in front: its page opens its
+        // own Settings at once. Anything else: the API launches the overlay page. If the API cannot be reached nothing claims the key and settings-hook.sh opens
+        // the overlay about 2 s later, so a failed request is slower, never a dead key.
+        tvdApi("/api/ui/settings-key");
         return true;
     } catch (e) {
         tvdApi("/api/qs?e=fail&m=" + encodeURIComponent("exc " + e));

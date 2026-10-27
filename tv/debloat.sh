@@ -10,7 +10,7 @@
 ACTION=${1:-status}; [ $# -gt 0 ] && shift
 # revert.sh (and the crash-loop guard) create DISABLE: nothing may be switched on again behind their back (the boot sweep and the Home watchdog run `sweep` for minutes)
 case $ACTION in apply|sweep) [ -e "$D/DISABLE" ] && { echo "DISABLE flag present: not applying"; exit 0; };; esac
-ALL="hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates cursorclear qspatch vmtune"
+ALL="hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates cursorclear qspatch vmtune lgmenus"
 CONF=$STATE/svc.conf; CATALOG=$D/services.tsv
 
 # --- which items are switched on ---------------------------------------------------------------------------------------
@@ -168,6 +168,15 @@ do_cursorclear() {
     status) echo "cursorclear: $(sh "$D/cursorclear.sh" status)";;
   esac
 }
+# lgmenus: LG's hidden or leftover menus that the remote can still open (the mic key = voice assistant overlay, three presses of Mute = the hidden service / local-key menu,
+# the Input Hub key = Home Connect). lastapp.sh closes them the moment SAM announces their launch (splash event, about 0.05 s after) while this flag exists.
+do_lgmenus() {
+  case $ACTION in
+    apply|sweep) touch "$STATE/lgmenus.on"; [ $ACTION = apply ] && echo "lgmenus: guard on";;
+    undo)  rm -f "$STATE/lgmenus.on"; echo "lgmenus: guard off";;
+    status) [ -e "$STATE/lgmenus.on" ] && echo "lgmenus: guarding" || echo "lgmenus: off";;
+  esac
+}
 # vmtune: the kernel swaps into LG's swap device (dm-linear: 600 MB of zram = compressed RAM first, then a small encrypted eMMC partition) with vm.swappiness=100 (it prefers swapping program memory over dropping cache). 20 keeps the
 # running apps in RAM: measured on the dev TV for the same usage cycle, 42 % fewer swap-ins, 38 % fewer swap-outs, 41 % fewer major faults (results/r8-swappiness.txt).
 # Runtime only (/proc/sys), the original value is kept in state/vm.orig and a reboot is stock.
@@ -211,6 +220,7 @@ active_of() {
     updates) upd_hosts_present && ! svc_running update && echo 1 || echo 0;;
     qspatch) is_mounted /usr/lib/qt5/qml/KeyFilters/appLaunch.js && echo 1 || echo 0;;
     cursorclear) is_mounted /usr/share/im && echo 1 || echo 0;;
+    lgmenus) [ -e "$STATE/lgmenus.on" ] && echo 1 || echo 0;;
     vmtune) [ "$(cat /proc/sys/vm/swappiness)" = "$VM_SWAPPINESS" ] && echo 1 || echo 0;;
   esac
 }
@@ -230,6 +240,7 @@ for i in $ITEMS; do
     updates) do_updates;;
     cursorclear) do_cursorclear;;
     qspatch) do_qspatch;;
+    lgmenus) do_lgmenus;;
     vmtune) do_vmtune;;
     *) echo "unknown item: $i";;
   esac

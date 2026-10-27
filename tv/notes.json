@@ -1,5 +1,15 @@
 [
   {
+    "v": "2026.10.27.2",
+    "date": "2026-10-27",
+    "title": "Settings opens almost instantly from Home, and LG's leftover menus are closed",
+    "notes": [
+      "Faster: pressing the Settings button while you are on the Home screen now opens Settings in about a fifth of a second (it used to take a full second). From inside an app or an HDMI input it opens as quickly as before.",
+      "New: a few LG screens could still pop up from the remote: the microphone button (voice assistant), pressing Mute three times (LG's hidden service menu) and the Input Hub button. They are now closed the moment they open. There is a switch for it in Settings > Services & privacy (Close LG's leftover menus). This was tested by opening those screens directly, not yet with the real remote buttons.",
+      "LG's own Settings is still there under Settings > LG Settings (legacy), for Wi-Fi setup, accounts and channel tuning."
+    ]
+  },
+  {
     "v": "2026.10.27.1",
     "date": "2026-10-27",
     "title": "Software updates, and Settings keys that survive a restart",

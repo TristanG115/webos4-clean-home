@@ -1049,6 +1049,21 @@ if (INPMODE) {
   });
   setTimeout(function(){ api('/api/ready', noop); }, 4000);    // ready even if the app list is slow, so the 30 s Home watchdog only trips when the API is gone
   netLabel(); activity();
+  // fast path of the Settings key (api.sh /api/ui/*): while Home is in front the compositor hands the key to this page, which opens its own Settings instead of a second page
+  function uiWait(){
+    if (MOCK) return;
+    xhr('GET', API + '/api/ui/wait', null, function(err, j){
+      if (j && j.cmd === 'settings') { api('/api/ui/ack', noop, 3000); uiSettings(); }
+      setTimeout(uiWait, err ? 3000 : 30);
+    }, 110000);
+  }
+  function uiSettings(){
+    if (settingsOn) { closeSettings(); return; }
+    if (saverOn) saverStop();
+    while (mstack.length) { var t = mtop(); if (t === 'panel') panelClose(); else if (t === 'qr') qrClose(); else if (t === 'keypad') keypadClose(); else if (t === 'editor') edClose(); else mstack.pop(); }
+    openSettings(); api('/api/qs?m=inhome-settings-open', noop);
+  }
+  setTimeout(uiWait, 1500);
   setTimeout(updPoll, MOCK ? 1200 : 25000); setInterval(function(){ if (!document.hidden && !saverOn) updPoll(); }, 600000);
   if (MOCK && /saver/.test(location.search)) setTimeout(saverStart, 1200);
   if (MOCK && /settings=(\w+)/.test(location.search)) setTimeout(function(){ openSettings(/settings=(\w+)/.exec(location.search)[1]); setArea('pane'); if (/row=(\d+)/.test(location.search)) sFocus(parseInt(/row=(\d+)/.exec(location.search)[1], 10), 0); }, 1500);

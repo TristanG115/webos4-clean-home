@@ -290,3 +290,13 @@ Not solved / honest limits: LG's own memory manager (`memchute`, `/etc/palm/memo
 | `install.sh --auto-update` sets the update mode to "Install by itself" for TVs set up for other people | `install.sh` | Settings -> Software updates |
 
 Tested on the dev TV with a local test source (`conf local=...`): update installs and the file list is cleaned, a script with a syntax error is refused before anything changes, a launcher with a JavaScript error is rolled back automatically (about 2 min, LG's Home shows meanwhile), `tools/check.sh` passes afterwards. NOT yet tested: a real download of a newer version from GitHub (needs the first push), `mode=auto` over days. A full reboot with the new code was tested: qspatch applied at boot (7 s), launcher up at 86 s, ad service stubbed.
+
+## Added in round 13 (2026-10-27: Settings from Home in about 0.2 s, LG's leftover menus closed)
+
+| What | Where / command | Undo |
+|---|---|---|
+| **Settings key fast path**: the compositor sends one GET to `/api/ui/settings-key`; with Home in front the Home page opens its own Settings through a FIFO long-poll (`/api/ui/wait`, ack `/api/ui/ack`), otherwise the API launches the overlay as before. About 0.2-0.35 s instead of 1.0-1.4 s from Home; overlay path unchanged. Verified with injected KEY_SETTINGS: open, toggle-close, HDMI 1 in front -> overlay opens and toggles closed. The compositor patch was re-applied twice (`qspatch.sh reapply`, each proven by the loaded-check). | `tv/api.sh`, `tv/qs/appLaunch.head.js`, `tv/launcher/app.js` | `sh qspatch.sh undo` (the shell hook then opens the overlay); the page code is harmless without the patch |
+| **Debloat item `lgmenus`** (Settings -> Services & privacy -> "Close LG's leftover menus", default on): closes the voice assistant, the hidden Mute x3 menu and Input Hub the instant SAM announces them | `tv/debloat.sh` (`do_lgmenus`, flag `state/lgmenus.on`), `tv/lastapp.sh`, `tv/services.tsv` | `sh debloat.sh undo lgmenus` or the switch; `revert.sh` undoes it with the rest |
+| Round 13 measurements and the "why not keep Settings hot" numbers | AGENTS.md "Round 13 facts" | - |
+
+Not verified: the real remote's gear / mic / Mute x3 / Input Hub buttons (injected gear key and direct launches only); `mode=auto` self-update over days.
