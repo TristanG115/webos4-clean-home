@@ -34,6 +34,8 @@ else
   log "home-on: launcher did not report ready in 30 s -> LG Home"; echo "launcher failed; restoring LG Home"
   sh "$D/home-off.sh" temp; exit 1
 fi
+# home-off.sh lifted the ad-service stub for LG's Home: put it back at once instead of waiting up to 5 minutes for the sweep (unless the owner turned that switch off)
+grep -q '^admanager=off' "$STATE/svc.conf" 2>/dev/null || sh "$D/debloat.sh" sweep admanager >/dev/null 2>&1
 # the remote's Settings key opens our Settings (see settings-hook.sh)
 ( setsid sh "$D/settings-hook.sh" start </dev/null >/dev/null 2>&1 & )
 # Back on Home returns to the last app (lastapp.sh), and the optional pointer switch is re-applied when the remote wakes (pointer.sh)

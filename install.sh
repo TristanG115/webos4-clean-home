@@ -1,14 +1,15 @@
 #!/bin/bash
-# install.sh <tv-ip> [--check] [--yes]   - guided install of the clean Home + debloat on a ROOTED LG webOS TV, from this PC.
+# install.sh <tv-ip> [--check] [--yes] [--auto-update]   - guided install of the clean Home + debloat on a ROOTED LG webOS TV, from this PC.
 #   --check   only look (writes tv.conf, tests SSH, prints the read-only compatibility report) - changes nothing on the TV
 #   --yes     do not ask before each stage
+#   --auto-update  set Settings -> Software updates to "Install by itself" (default: "Tell me"): good for a TV you set up once for someone else
 # Stages: 1 TV address -> 2 SSH key login -> 3 compatibility report -> 4 copy the files -> 5 debloat one item at a time (check after each)
 #         -> 6 launcher (stand-in Home) -> 7 optional boot hook. Every stage prints how to undo it. Safe to re-run.
 # Not rooted? Use the rootless pack instead: rootless/README.md
 set -u
 cd "$(dirname "$0")" || exit 1
-CHECK=0; YES=0; IP=""
-for a in "$@"; do case $a in --check) CHECK=1;; --yes) YES=1;; -h|--help) sed -n 2,8p "$0"; exit 0;; *) IP=$a;; esac; done
+CHECK=0; YES=0; AUTOUP=0; IP=""
+for a in "$@"; do case $a in --check) CHECK=1;; --yes) YES=1;; --auto-update) AUTOUP=1;; -h|--help) sed -n 2,9p "$0"; exit 0;; *) IP=$a;; esac; done
 ask() { [ $YES = 1 ] && return 0; read -r -p "$1 [y/N] " r; [ "$r" = y ] || [ "$r" = Y ]; }
 step() { echo; echo "=== $*"; }
 if [ -n "$IP" ]; then printf 'TV_IP=%s\nTV_USER=root\n' "$IP" > tv.conf; echo "wrote tv.conf (TV_IP=$IP)"; fi
@@ -51,4 +52,6 @@ if ask "Install the hook?"; then
   ./tv.sh -s < tools/safety-test.sh 2>&1 | tail -6
   ./tv.sh 'cp /media/developer/tv-debloat/zz-debloat /var/lib/webosbrew/init.d/ && chmod 755 /var/lib/webosbrew/init.d/zz-debloat && echo "hook installed"'
 fi
+[ $AUTOUP = 1 ] && ./tv.sh 'sh /media/developer/tv-debloat/selfupdate.sh conf mode auto'
+echo; echo "Updates: this TV checks GitHub for new versions of the project (Settings -> Software updates; mode: $([ $AUTOUP = 1 ] && echo 'install by itself' || echo 'tell me'))"
 echo; echo "Done. Add your photos:  node tools/prep-photos.js <folder> && sh tools/deploy.sh   (or scan the QR code in Settings -> Photo gallery)"
