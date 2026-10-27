@@ -6,7 +6,7 @@ D=/media/developer/tv-debloat
 export PATH=/usr/bin:/usr/sbin:/bin:/sbin:$PATH
 echo "[1/6] disable at boot (DISABLE flag)"; touch $D/DISABLE
 echo "[2/6] LG Home back"; sh $D/home-off.sh temp 2>&1 | sed 's/^/      /'
-echo "[3/6] debloat undo"; sh $D/debloat.sh undo 2>&1 | sed 's/^/      /'
+echo "[3/6] debloat undo"; sh $D/debloat.sh undo 2>&1 | sed 's/^/      /'; sh $D/remote.sh telnet on 2>&1 | sed 's/^/      telnet: /'
 echo "[4/6] stop launcher API, Settings hook, RAM copy"; sh $D/settings-hook.sh stop; sh $D/lastapp.sh stop; sh $D/backlight.sh restore; sh $D/backchain.sh stop; sh $D/pointerhide.sh stop; sh $D/brightness.sh set off >/dev/null 2>&1; sh $D/pointer.sh on >/dev/null 2>&1; for p in $(pgrep -f "tcpsvd.* 8765 "); do kill $p 2>/dev/null; done; . $D/common.sh; ram_drop
 echo "[5/6] rename init hook"
 if [ -e /var/lib/webosbrew/init.d/zz-debloat ]; then

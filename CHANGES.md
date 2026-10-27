@@ -308,3 +308,16 @@ Not verified: the real remote's gear / mic / Mute x3 / Input Hub buttons (inject
 | **Memory guard** (debloat item `memguard`, Services switch "Watch memory and protect the TV", default on): a 10 s loop reading /proc only; percentages of RAM by profile; low closes apps beyond the newest (`lastapp.sh evict 1`), critical also makes the Home page drop its photos (FIFO `lowmem`) and drops the page cache; steps down after 3 calm samples; history in RAM. Settings -> About & updates shows state, lowest free, most swap, episodes, last action and the profile choice (Automatic / Roomy / Standard / Weak). Proven with a 170 MB RAM hog: low, critical, photos dropped, recovery. | `tv/memguard.sh`, `tv/debloat.sh` (`do_memguard`), `tv/lastapp.sh` (`evict [N]`), `tv/api.sh` (`/api/mem`, `/api/mem/conf`, `guard` in sysinfo), `tv/launcher/app.js` (LOWMEM), `tv/services.tsv` | `sh debloat.sh undo memguard` or the switch; `revert.sh` stops it with the rest |
 
 Not verified: the guard on a genuinely weaker TV (only simulated with the Weak profile and a RAM hog); effect of `drop_caches` on responsiveness (unmeasured).
+
+## Added in round 15 (2026-10-27: faster boot, start-up cover, Remote access, Network)
+
+| What | Where / command | Undo |
+|---|---|---|
+| **Two-phase boot**: debloat.sh apply-early (cursorclear, qspatch) -> home-on -> apply-late (the rest); sleep 5 -> 2 in boot.sh, sleep 3 -> 1 and 0.5 s ready polling in home-on.sh. Our Home ready at 59.9 s (was 79 s). | tv/boot.sh, tv/debloat.sh, tv/home-on.sh | revert.sh / DISABLE as always |
+| **Start-up cover** (debloat item bootcover, Services switch, default on): cover.sh shows launcher/cover.html as an opaque overlay when nothing or LG's Home is in front, again after qspatch's compositor restart, and hides it when our Home is ready | tv/cover.sh, tv/launcher/cover.html, tv/common.sh (cover_appdesc), tv/boot.sh, tv/home-on.sh, tv/home-off.sh, tv/qspatch.sh, tv/api.sh (/api/cover/hide) | the switch, or touch state/cover-off |
+| **cursorclear flash cache** (state/im-clear-cache, about 1 MB): mounted directly, no RAM copy, no rebuild at boot | tv/cursorclear.sh | sh cursorclear.sh off (the cache stays) |
+| **Settings -> Remote access**: name, IPs, MACs, ssh / telnet commands, key count, Telnet switch (refused without an SSH key; SSH locked on); revert.sh turns Telnet back on | tv/remote.sh, tv/api.sh (/api/remote, /api/remote/telnet), tv/launcher/app.js, tv/revert.sh | sh remote.sh telnet on |
+| **Settings -> Network** shows router, Wi-Fi radio and saved networks (read-only) | tv/wifi.sh, tv/api.sh (/api/wifi), tv/launcher/app.js | - |
+| **vmtune: swap read-ahead off** (vm.page-cluster 0, original saved in state/vm.pc.orig) | tv/debloat.sh | sh debloat.sh undo vmtune |
+
+Tested: remote json, Telnet off/on (SSH untouched), cursorclear off / build 0.6 s / cached 0.12 s, cover shown and hidden at runtime, both boot phases run for real, two cold reboots (Home ready 79 s -> 59.9 s). NOT verified: the cover on a cold boot that starts on Home, (a boot that starts on an input ends on our Home: see AGENTS.md Round 15), Wi-Fi joining (not built), the page-cluster benefit.

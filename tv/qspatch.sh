@@ -78,6 +78,7 @@ restart_ui() { # restart the compositor and bring everything back; 0 = healthy
   svc_up WebAppMgr || { initctl start WebAppMgr >/dev/null 2>&1; sleep 5; }
   i=0; while [ $i -lt 60 ]; do ui_healthy && break; sleep 3; i=$((i+3)); done
   ui_healthy || return 1
+  [ "$BOOTMODE" = 1 ] && sh "$D/cover.sh" show >/dev/null 2>&1        # the compositor restart killed the start-up cover: put it back
   # at boot Home is not ours yet (home-on.sh runs after this) and during revert.sh it is LG's again: then there is no launcher to wait for
   [ "$BOOTMODE" = 1 ] && return 0
   is_mounted "$HOME_EXE" || return 0

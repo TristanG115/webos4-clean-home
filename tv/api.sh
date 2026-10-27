@@ -154,6 +154,11 @@ case "$P" in
                 up > /tmp/qs-claim          # tell settings-hook.sh the key is handled
                 [ $home = true ] || ( setsid sh "$D/settings-open.sh" launch </dev/null >/dev/null 2>&1 & )      # not Home / page not listening: the overlay page
                 hdr "200 OK"; printf '{"home":%s}' "$home";;
+  /api/remote)  hdr "200 OK"; timeout -t 10 sh "$D/remote.sh" json </dev/null 2>/dev/null || echo '{}';;
+  /api/remote/telnet) case "$(qget v)" in on|off) m=$(timeout -t 15 sh "$D/remote.sh" telnet "$(qget v)" </dev/null 2>&1 | head -1 | tr -d '"');; *) m="bad request";; esac
+                hdr "200 OK"; printf '{"msg":"%s"}' "$m";;
+  /api/wifi)    hdr "200 OK"; printf '{"saved":%s,"status":%s}' "$(timeout -t 10 sh "$D/wifi.sh" saved </dev/null 2>/dev/null || echo '{}')" "$(timeout -t 10 sh "$D/wifi.sh" status </dev/null 2>/dev/null || echo '{}')";;
+  /api/cover/hide) ( sh "$D/cover.sh" hide </dev/null >/dev/null 2>&1 & ); hdr "200 OK"; echo '{"ok":true}';;
   /api/mem)     hdr "200 OK"; timeout -t 10 sh "$D/memguard.sh" json </dev/null 2>/dev/null || echo '{"running":false}';;
   /api/mem/conf) case "$(qget v)" in auto|roomy|standard|weak) timeout -t 10 sh "$D/memguard.sh" conf profile "$(qget v)" </dev/null >/dev/null 2>&1;; esac
                 hdr "200 OK"; echo '{"ok":true}';;

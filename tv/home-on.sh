@@ -20,16 +20,17 @@ mount --bind "$D/home-standin.sh" $HOME_EXE || { log "home-on: bind mount failed
 log "home-on: stand-in mounted over $HOME_EXE (page from $DIR)"
 lun luna://com.webos.settingsservice/setSystemSettings '{"category":"general","settings":{"screenSaverEnabled":"off"}}' >/dev/null
 for p in $(pgrep -f "^$HOME_EXE"); do kill "$p" 2>/dev/null; done
-sleep 3
+sleep 1
 fg=$(lun luna://com.webos.applicationManager/launch "{\"id\":\"$HOME_ID\"}")
 log "home-on: launch Home -> $fg"
 ok=0; i=0
-while [ $i -lt 15 ]; do
+while [ $i -lt 60 ]; do
   [ -e "$STATE/launcher.ready" ] && { ok=1; break; }
-  sleep 2; i=$((i+1))
+  usleep 500000; i=$((i+1))
 done
 if [ $ok = 1 ]; then
   log "home-on: launcher reported ready"; echo "launcher active"
+  sh "$D/cover.sh" hide >/dev/null 2>&1
 else
   log "home-on: launcher did not report ready in 30 s -> LG Home"; echo "launcher failed; restoring LG Home"
   sh "$D/home-off.sh" temp; exit 1

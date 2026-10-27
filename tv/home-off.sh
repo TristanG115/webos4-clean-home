@@ -3,6 +3,7 @@
 . /media/developer/tv-debloat/common.sh
 [ "$1" = perm ] && touch "$D/DISABLE"
 # our Settings key hook and overlay go first: with LG's Home back, LG's own Settings panel is used again
+sh "$D/cover.sh" hide >/dev/null 2>&1
 sh "$D/settings-hook.sh" stop >/dev/null 2>&1
 sh "$D/lastapp.sh" stop >/dev/null 2>&1
 sh "$D/backlight.sh" restore >/dev/null 2>&1

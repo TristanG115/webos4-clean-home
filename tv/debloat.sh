@@ -8,9 +8,12 @@
 # `lgsettings`/`updates`, which flip LG's own switches through LG's settings service (originals saved by undo / left as found).
 . /media/developer/tv-debloat/common.sh
 ACTION=${1:-status}; [ $# -gt 0 ] && shift
+# boot in two phases (boot.sh): apply-early = only what must be in place BEFORE our Home starts (the pointer pictures and the compositor patch: the patch restarts the compositor),
+# apply-late = everything else, after Home is up. Both honour the switches exactly like apply.
+PHASE=""; case $ACTION in apply-early) PHASE=early; ACTION=apply;; apply-late) PHASE=late; ACTION=apply;; esac
 # revert.sh (and the crash-loop guard) create DISABLE: nothing may be switched on again behind their back (the boot sweep and the Home watchdog run `sweep` for minutes)
-case $ACTION in apply|sweep) [ -e "$D/DISABLE" ] && { echo "DISABLE flag present: not applying"; exit 0; };; esac
-ALL="hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates cursorclear qspatch vmtune lgmenus memguard"
+case $ACTION in apply|apply-early|apply-late|sweep) [ -e "$D/DISABLE" ] && { echo "DISABLE flag present: not applying"; exit 0; };; esac
+ALL="hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates cursorclear qspatch vmtune lgmenus memguard bootcover"
 CONF=$STATE/svc.conf; CATALOG=$D/services.tsv
 
 # --- which items are switched on ---------------------------------------------------------------------------------------
@@ -22,6 +25,12 @@ want() { # id -> on|off
 }
 wanted() { for i in $ALL; do [ "$(want $i)" = on ] && echo $i; done; }
 if [ -n "$*" ]; then ITEMS=$*; elif [ "$ACTION" = apply ] || [ "$ACTION" = sweep ]; then ITEMS=$(wanted | tr '\n' ' '); else ITEMS=$ALL; fi
+
+if [ -n "$PHASE" ]; then
+  ITEMS=$(for i in $ITEMS; do
+    case $i in cursorclear|qspatch) [ "$PHASE" = early ] && echo $i;; *) [ "$PHASE" = late ] && echo $i;; esac
+  done | tr '\n' ' ')
+fi
 
 svc_running() { initctl status "$1" 2>/dev/null | grep -q "start/running"; }
 LGSET() { lun luna://com.webos.settingsservice/setSystemSettings "$1" >/dev/null; }
@@ -168,6 +177,14 @@ do_cursorclear() {
     status) echo "cursorclear: $(sh "$D/cursorclear.sh" status)";;
   esac
 }
+# bootcover: our own "starting up" screen over LG's Home while the TV boots (cover.sh); only a flag, read by cover.sh at boot
+do_bootcover() {
+  case $ACTION in
+    apply|sweep) rm -f "$STATE/cover-off"; [ $ACTION = apply ] && echo "bootcover: on";;
+    undo)  touch "$STATE/cover-off"; echo "bootcover: off";;
+    status) [ -e "$STATE/cover-off" ] && echo "bootcover: off" || echo "bootcover: on";;
+  esac
+}
 # memguard: watches free memory / swap-in and steps in before the TV thrashes (memguard.sh); a long-running loop, restarted by the sweep if it ever dies
 do_memguard() {
   case $ACTION in
@@ -192,10 +209,12 @@ VM_SWAPPINESS=20
 do_vmtune() {
   case $ACTION in
     apply|sweep) [ -s "$STATE/vm.orig" ] || cat /proc/sys/vm/swappiness > "$STATE/vm.orig"
+           # swap is compressed RAM (zram): reading one page back costs a decompression, so reading 8 neighbours "just in case" (page-cluster 3, the default) wastes memory and time
+           [ -s "$STATE/vm.pc.orig" ] || cat /proc/sys/vm/page-cluster > "$STATE/vm.pc.orig"; [ "$(cat /proc/sys/vm/page-cluster)" = 0 ] || echo 0 > /proc/sys/vm/page-cluster
            [ "$(cat /proc/sys/vm/swappiness)" = "$VM_SWAPPINESS" ] || echo $VM_SWAPPINESS > /proc/sys/vm/swappiness
            [ $ACTION = apply ] && echo "vmtune: swappiness $VM_SWAPPINESS";;
-    undo)  echo "$(cat "$STATE/vm.orig" 2>/dev/null || echo 100)" > /proc/sys/vm/swappiness; rm -f "$STATE/vm.orig"; echo "vmtune: swappiness back to stock";;
-    status) echo "vmtune: swappiness $(cat /proc/sys/vm/swappiness)";;
+    undo)  echo "$(cat "$STATE/vm.orig" 2>/dev/null || echo 100)" > /proc/sys/vm/swappiness; rm -f "$STATE/vm.orig"; echo "$(cat "$STATE/vm.pc.orig" 2>/dev/null || echo 3)" > /proc/sys/vm/page-cluster; rm -f "$STATE/vm.pc.orig"; echo "vmtune: swappiness and swap read-ahead back to stock";;
+    status) echo "vmtune: swappiness $(cat /proc/sys/vm/swappiness), swap read-ahead $(cat /proc/sys/vm/page-cluster)";;
   esac
 }
 do_updates() {
@@ -228,6 +247,7 @@ active_of() {
     updates) upd_hosts_present && ! svc_running update && echo 1 || echo 0;;
     qspatch) is_mounted /usr/lib/qt5/qml/KeyFilters/appLaunch.js && echo 1 || echo 0;;
     cursorclear) is_mounted /usr/share/im && echo 1 || echo 0;;
+    bootcover) [ -e "$STATE/cover-off" ] && echo 0 || echo 1;;
     memguard) sh "$D/memguard.sh" status | grep -q running && echo 1 || echo 0;;
     lgmenus) [ -e "$STATE/lgmenus.on" ] && echo 1 || echo 0;;
     vmtune) [ "$(cat /proc/sys/vm/swappiness)" = "$VM_SWAPPINESS" ] && echo 1 || echo 0;;
@@ -249,6 +269,7 @@ for i in $ITEMS; do
     updates) do_updates;;
     cursorclear) do_cursorclear;;
     qspatch) do_qspatch;;
+    bootcover) do_bootcover;;
     memguard) do_memguard;;
     lgmenus) do_lgmenus;;
     vmtune) do_vmtune;;

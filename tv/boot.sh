@@ -10,13 +10,18 @@ n=0
 until lun luna://com.webos.applicationManager/running '{}' | grep -q returnValue; do
   sleep 3; n=$((n+3)); [ $n -gt 240 ] && { log "boot: SAM never answered"; exit 0; }
 done
-sleep 5
+sleep 2
+# our own start-up screen over LG's Home (only when LG's Home is what would show); home-on.sh removes it the moment our Home is ready
+sh "$D/cover.sh" show >/dev/null 2>&1
 [ -e "$STATE/backlight.orig" ] && sh "$D/backlight.sh" restore      # a screensaver dim must never survive a reboot
-# every switch that is ON in Settings -> Services & privacy (state/svc.conf, defaults in services.tsv)
-sh "$D/debloat.sh" apply >/dev/null 2>&1
-if sh "$D/home-on.sh" >/dev/null 2>&1; then echo 0 > "$STATE/boot-count"; log "boot: launcher up, boot-count reset"; else log "boot: launcher not active (LG Home in use)"; fi
+# Only what must be in place before our Home starts goes first (the pointer pictures and the compositor patch, which restarts the compositor); every other switch that is ON
+# in Settings -> Services & privacy (state/svc.conf, defaults in services.tsv) is applied right after Home is up. That gets our Home on screen about 15 s sooner.
+sh "$D/debloat.sh" apply-early >/dev/null 2>&1
+if sh "$D/home-on.sh" >/dev/null 2>&1; then sh "$D/cover.sh" hide >/dev/null 2>&1; echo 0 > "$STATE/boot-count"; log "boot: launcher up, boot-count reset"; else sh "$D/cover.sh" hide >/dev/null 2>&1; log "boot: launcher not active (LG Home in use)"; fi
+sh "$D/debloat.sh" apply-late >/dev/null 2>&1
 # refresh the remote ad-block lists in the background (needs the network; skipped when they are fresh)
 ( sh "$D/blocklist.sh" maybe-update >/dev/null 2>&1 ) </dev/null >/dev/null 2>&1 &
 # nudge/contentminer/voice start late (trigger events); sweep for 5 minutes. home-on.sh's watchdog keeps sweeping every 5 minutes after that.
 i=0; while [ $i -lt 15 ]; do sleep 20; sh "$D/debloat.sh" sweep >/dev/null 2>&1; i=$((i+1)); done
+sh "$D/cover.sh" hide >/dev/null 2>&1       # whatever happened above, the cover never stays
 log "boot: done"

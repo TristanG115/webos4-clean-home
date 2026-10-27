@@ -18,6 +18,7 @@ is_mounted() { grep -q " $1 " /proc/mounts; }
 HOME_ID=com.webos.app.fullhome
 HOME_EXE=/usr/bin/com.webos.app.fullhome
 INP_ID=tv.debloat.inputs            # our Inputs overlay (replaces LG's input picker, opened by the compositor patch)
+COVER_ID=tv.debloat.cover            # the start-up cover (cover.sh)
 SET_ID=tv.debloat.settings          # our Settings overlay (a second WAM page; the remote's Settings key opens it)
 RAMDIR=/tmp/tv-launcher             # tmpfs copy of the launcher code (photos stay on flash and are bind-mounted in)
 
@@ -70,6 +71,8 @@ overlay_appdesc() { # <app id> <html file> <title>
   [ -e "$D/DEBUG" ] && printf ',"inspectable":true'
   printf '}'
 }
+# the boot cover: opaque, from the flash copy of the launcher folder (the RAM copy does not exist yet that early in the boot)
+cover_appdesc() { printf '{"id":"%s","version":"1.0.0","vendor":"tv-debloat","type":"web","main":"cover.html","title":"Starting","visible":false,"transparent":false,"bgColor":"#07090d","disableBackHistoryAPI":true,"lockable":false,"supportQuickStart":false,"defaultWindowType":"overlay","trustLevel":"trusted","folderPath":"%s"}' "$COVER_ID" "$D/launcher"; }
 settings_appdesc() { overlay_appdesc "$SET_ID" settings.html Settings; }
 inputs_appdesc() { overlay_appdesc "$INP_ID" inputs.html Inputs; }
 # lgsettings.allow holds the uptime (seconds) until which LG's own Settings app may be opened without being redirected to ours

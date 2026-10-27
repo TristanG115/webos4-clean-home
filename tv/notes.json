@@ -1,5 +1,17 @@
 [
   {
+    "v": "2026.10.27.4",
+    "date": "2026-10-27",
+    "title": "Faster start-up, a start-up screen, Remote access page, better Network page",
+    "notes": [
+      "Faster: after a restart our Home screen is ready about 20 seconds sooner (about 60 seconds after power-on instead of 79). The less urgent clean-up now happens right after Home is up.",
+      "New: a plain dark \"starting up\" screen covers LG's own Home while the TV starts, so LG's promotions are not what you see first. It only appears if the TV would otherwise start on LG's Home: if it starts on an HDMI input or an app, nothing changes. There is a switch in Settings > Services & privacy (Show our own start-up screen), and you can put a picture called cover.png in the launcher folder to use your own.",
+      "New: Settings > Remote access shows how to find and reach the TV: its name, wired and Wi-Fi IP address, MAC address, the exact ssh and telnet commands, whether an SSH key is installed, and a Telnet on/off switch. SSH always stays on because it is the way back in; Telnet can only be switched off when an SSH key is installed.",
+      "Better: Settings > Network now also shows the router address, whether the Wi-Fi radio is on and which Wi-Fi networks the TV remembers. To join a new Wi-Fi network it still opens LG's own Settings.",
+      "Small: the swap memory is read back more efficiently (read-ahead off), and the invisible-pointer pictures are kept ready on flash so they cost no start-up time and no memory."
+    ]
+  },
+  {
     "v": "2026.10.27.3",
     "date": "2026-10-27",
     "title": "Memory guard: the TV protects itself when memory runs short",

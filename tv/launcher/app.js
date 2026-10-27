@@ -639,10 +639,13 @@ cats = [
     lgTgl('sound', 'audioDescription', 'Audio description', 'Narration of what happens on screen'), lgTgl('sound', 'visualImpaired', 'Audio for the visually impaired', ''),
     head('Help'), lgTgl('option', 'animationGuide', 'Animation guide', ''), lgTgl('option', 'baloonHelp', 'Help balloons', '')
   ]; }},
-  {id: 'net', name: 'Network', icon: 'net', title: 'Network', desc: '', info: '/api/net', lg: [['network', ['wolwowlOnOff','bleAdvertisingOnOff','allowMobileDeviceAccess']]], build: function(){ var j = this.data || {}, w = j.wired || {}, f = j.wifi || {}; return [
+  {id: 'net', name: 'Network', icon: 'net', title: 'Network', desc: '', info: '/api/net', lg: [['network', ['wolwowlOnOff','bleAdvertisingOnOff','allowMobileDeviceAccess']]], build: function(){ var self = this, j = this.data || {}, w = j.wired || {}, f = j.wifi || {}; if (!self.wifi && !self.wifiAsked) { self.wifiAsked = true; api('/api/wifi', function(err, x){ if (x) { self.wifi = x; if (settingsOn && cats[catIdx].id === 'net') renderCat(false); } }, 10000); } return [
     inf('Connection', function(){ return w.state === 'connected' ? 'Ethernet' : f.state === 'connected' ? 'Wi-Fi' : 'Offline'; }),
     inf('IP address', function(){ return w.ipAddress || f.ipAddress || '–'; }),
     inf('Wi-Fi network', function(){ return f.state === 'connected' ? (f.ssid || 'connected') : '–'; }),
+    inf('Gateway (router)', function(){ return w.gateway || f.gateway || '–'; }),
+    inf('Wi-Fi radio', function(){ var s = (self.wifi && self.wifi.status && self.wifi.status.status) || ''; return !self.wifi ? '–' : s === 'serviceEnabled' ? 'on' : s ? s : '–'; }),
+    inf('Saved Wi-Fi networks', function(){ var l = (self.wifi && self.wifi.saved && self.wifi.saved.profileList) || []; if (!self.wifi) return '–'; return l.length ? l.map(function(p){ return p.wifiProfile && p.wifiProfile.ssid; }).join(', ') : 'none'; }, 'Networks the TV remembers. To join a new one, use the last row.'),
     inf('DNS', function(){ return w.dns1 || f.dns1 || '–'; }),
     inf('Internet', function(){ return j.isInternetConnectionAvailable ? 'available' : 'not available'; }),
     lgTgl('network', 'wolwowlOnOff', 'Turn on with a network signal', 'Wake on LAN / Wi-Fi: lets your phone or computer switch the TV on', 'true', 'false'),
@@ -650,6 +653,28 @@ cats = [
     lgTgl('network', 'allowMobileDeviceAccess', 'Allow mobile devices to connect', '', 'true', 'false'),
     act('Join a Wi-Fi network (LG Settings)', 'Opens LG’s own Settings for Wi-Fi setup', function(){ launch('com.palm.app.settings'); })
   ]; }},
+  {id: 'access', name: 'Remote access', icon: 'remote', title: 'Remote access (SSH / Telnet)', desc: 'How to find this TV and reach it from a computer on the same network. SSH is the safe way in and stays on. Telnet is the emergency door with no password.', info: '/api/remote', build: function(){
+    var self = this, j = this.data || {}, ssh = j.ssh || {}, tel = j.telnet || {}, ip = j.ethIp || j.wifiIp || 'the TV’s IP address', rows = [];
+    rows.push(head('Find this TV'));
+    rows.push(inf('Name', j.host || '–'));
+    rows.push(inf('Wired IP address', j.ethIp || 'not connected', 'Use this one when the TV is on a cable. Give it a fixed address in your router (DHCP reservation) so it never changes.'));
+    rows.push(inf('Wi-Fi IP address', j.wifiIp || 'not connected'));
+    rows.push(inf('MAC address (wired)', j.ethMac || '–', 'What you enter in the router to reserve the address above.'));
+    if (j.wifiMac) rows.push(inf('MAC address (Wi-Fi)', j.wifiMac));
+    rows.push(head('SSH (secure shell)'));
+    rows.push(inf('Status', ssh.listening ? 'on, always' : 'not running', 'SSH is how the project is installed and repaired, so it cannot be switched off here.'));
+    rows.push(inf('Connect with', 'ssh root@' + ip, 'Run that in a terminal on a computer on the same network.'));
+    rows.push(inf('Keys installed', String(ssh.keys === undefined ? '–' : ssh.keys), ssh.keys > 0 ? 'Key login works from the computer that has the matching key.' : 'No key yet: add one with  ssh-copy-id root@' + ip));
+    rows.push(head('Telnet (no password)'));
+    rows.push(tgl('Telnet', 'On: anyone on your network can open a root shell with  telnet ' + ip + '. It is the emergency way in if SSH ever breaks. Off: only SSH works. Turning it off needs an SSH key to be installed first, and turning the whole project off (revert.sh) turns it back on.', function(){ return !!tel.listening; }, function(b){
+      if (!b && !self.confirmOff) { self.confirmOff = true; toast('Press again to turn Telnet off'); setTimeout(function(){ self.confirmOff = false; if (settingsOn && cats[catIdx].id === 'access') renderCat(false); }, 6000); renderCat(false); return; }
+      self.confirmOff = false;
+      api('/api/remote/telnet?v=' + (b ? 'on' : 'off'), function(err, r){ toast((r && r.msg) ? ('Telnet: ' + r.msg) : 'Could not change that'); setTimeout(function(){ if (settingsOn && cats[catIdx].id === 'access') renderCat(true); }, 1500); }, 20000); }));
+    rows.push(inf('Connect with', 'telnet ' + ip));
+    rows.push(head('For developers'));
+    rows.push(inf('Debug page (DevTools)', j.devtools && j.devtools.on ? 'on, port 9998' : 'off', 'Only on while the DEBUG flag exists. Normally off.'));
+    rows.push(inf('TV helper service', 'port ' + ((j.api && j.api.port) || 8765), 'Used by the Home screen and the phone page. Only the phone page and photo routes answer to other devices, and only with the secret link.'));
+    return rows; }},
   {id: 'block', name: 'Ad blocking', icon: 'block', title: 'Ad blocking', desc: 'Pi-hole style: names on these lists are made unreachable for every app on the TV. A name is never blocked if it is on the always-allowed list.', info: '/api/block', build: function(){
     var self = this, d = this.data || {}, lists = d.lists || [], out = [];
     out.push(inf('Names blocked right now', num(d.blocked || 0), 'Each name lookup takes a few milliseconds longer per thousand names.'));
