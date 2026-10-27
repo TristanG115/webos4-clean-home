@@ -123,9 +123,10 @@ case "$P" in
   /api/launch)  id=$(qget id)
                 if ok_id "$id"; then hdr "200 OK"; LW=10000 lun luna://com.webos.applicationManager/launch "{\"id\":\"$id\",\"params\":{}}"
                 else bad; fi;;
-  /api/back)    # Back on Home: return to the app / input you were in before Home (tracked by lastapp.sh)
+  /api/back)    # Back on Home: return to the app / input you were in before Home (tracked by lastapp.sh). While an app is loading (its splash is up, Home still has the key) Back cancels that launch instead
+                if timeout -t 8 sh "$D/lastapp.sh" cancel </dev/null >/dev/null 2>&1; then hdr "200 OK"; echo '{"back":"cancel"}'; exit 0; fi
                 id=$(timeout -t 8 sh "$D/lastapp.sh" top 2>/dev/null)
-                if ok_id "$id"; then hdr "200 OK"; LW=10000 lun luna://com.webos.applicationManager/launch "{\"id\":\"$id\",\"params\":{}}" >/dev/null; echo "{\"back\":\"$id\"}"
+                if ok_id "$id"; then log "api: Back on Home -> $id"; hdr "200 OK"; LW=10000 lun luna://com.webos.applicationManager/launch "{\"id\":\"$id\",\"params\":{}}" >/dev/null; echo "{\"back\":\"$id\"}"
                 else hdr "200 OK"; echo '{"back":""}'; fi;;
   /api/appupdates) hdr "200 OK"; timeout -t 25 sh "$D/appupdate.sh" json </dev/null 2>/dev/null || echo '{"mode":"","pending":[],"apps":[]}';;
   /api/appupdates/mode) case "$(qget v)" in auto|manual) timeout -t 15 sh "$D/appupdate.sh" mode "$(qget v)" </dev/null >/dev/null 2>&1;; esac
@@ -144,7 +145,7 @@ case "$P" in
                 hdr "200 OK"; sh "$D/lastapp.sh" conf;;
   /api/backchain) case "$(qget v)" in off) touch "$STATE/backchain-off";; on) rm -f "$STATE/backchain-off";; esac
                 hdr "200 OK"; [ -e "$STATE/backchain-off" ] && echo '{"chain":"off"}' || echo '{"chain":"on"}';;
-  /api/brightness) v=$(qget v); [ -n "$v" ] && timeout -t 60 sh "$D/brightness.sh" set "$v" </dev/null >/dev/null 2>&1
+  /api/brightness) v=$(qget v); if [ "$v" = off ]; then ( setsid sh "$D/brightness.sh" set off </dev/null >/dev/null 2>&1 & ); elif [ -n "$v" ]; then timeout -t 60 sh "$D/brightness.sh" set "$v" </dev/null >/dev/null 2>&1; fi
                 hdr "200 OK"; printf '{"brightness":"%s"}' "$(sh "$D/brightness.sh" status)";;
   /api/pointerhide) case "$(qget v)" in on) rm -f "$STATE/pointerhide-off"; ( setsid sh "$D/pointerhide.sh" start </dev/null >/dev/null 2>&1 & );; off) touch "$STATE/pointerhide-off"; sh "$D/pointerhide.sh" stop >/dev/null 2>&1;; esac
                 hdr "200 OK"; printf '{"pointerhide":"%s"}' "$([ -e "$STATE/pointerhide-off" ] && echo off || echo on)";;

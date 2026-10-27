@@ -1,8 +1,9 @@
 #!/bin/sh
 # backchain.sh start|stop|status - what the Back key does in apps and inputs.
 # keywatch.py reports each press of the remote's Back key (the Magic Remote sends code 412, the IR remote 158) and a "LEAVE" when Back is held or pressed twice quickly.
-#   BACK   the app gets the key first (Netflix ignores it on its start screen, YouTube steps back inside itself). 1.5 s later, if the app quit, the TV lands where SAM
-#          put it (often the last input); we move it to where you expect: the previous app of your history (lastapp.sh) or Home when there is none.
+#   BACK   the app gets the key first (Netflix ignores it on its start screen, YouTube steps back inside itself). If the app quits (foreground changes within 3 s), the TV lands where
+#          SAM put it (often the last input); we move it, within 0.1 s of the landing, to where you expect: the previous app of your history (lastapp.sh) or Home when there is none.
+#          While an app is still on its splash screen Back cancels the launch instead (lastapp.sh cancel: the loading app is closed, you are back where you started it).
 #   LEAVE  you want out, whatever the app does with Back: go to the previous app / Home at once (the app stays open in the background, like the Home key).
 # Home, our Settings and LG overlays are never touched. Options (Settings -> Remote & pointer): state/backchain-off = no previous-app landing (Home instead),
 # leave=both|hold|double|off in state/back.conf. RAM only; a reboot without the init hook is stock.
@@ -27,12 +28,16 @@ echo $$ > $PIDF
 log "backchain: watching the Back key"
 python $KW 2>/dev/null | while read -r ev; do
   [ -e "$D/DISABLE" ] && continue
-  a=$(fgid); skip_app "$a" && continue
+  # Back (or hold / double) while an app is still loading its splash screen: the app cannot use the key yet, so it means "never mind" (lastapp.sh cancel closes the app, goes back)
+  { [ -s /tmp/launching ] || [ -e /tmp/launch-cancelled ]; } && sh "$D/lastapp.sh" cancel >/dev/null 2>&1 && continue      # (the file test keeps the common case free of a shell start)
+  a=$(cat /tmp/fgnow 2>/dev/null); [ -n "$a" ] || a=$(fgid); skip_app "$a" && continue         # /tmp/fgnow is kept by lastapp.sh (SAM life events): no luna call before acting
   case $ev in
     LEAVE) t=$(target "$a"); log "backchain: Back held / pressed twice in $a -> $t"; launch "$t";;
     BACK)  [ -e "$STATE/backchain-off" ] && continue
-           ( usleep 1500000
-             b=$(fgid); [ -n "$b" ] && [ "$b" != "$a" ] || exit 0        # still in the app: it used the key itself
+           ( i=0; b=$a                                                                             # watch for the app quitting on this Back and act within 0.1 s of the TV landing
+             while [ $i -lt 30 ]; do usleep 100000; b=$(cat /tmp/fgnow 2>/dev/null); [ -n "$b" ] && [ "$b" != "$a" ] && break; i=$((i+1)); done
+             [ -n "$b" ] && [ "$b" != "$a" ] || exit 0                                            # still in the app: it used the key itself
+             case "$b" in "$SET_ID"|com.webos.app.quicksettings|com.webos.app.screensaver*|com.webos.app.notification*) exit 0;; esac     # an overlay on top, not a landing (Home is a landing: apps that quit on Back often land there)
              t=$(target "$a"); [ "$b" = "$t" ] && exit 0
              log "backchain: $a quit (TV showed $b) -> $t"; launch "$t" ) </dev/null >/dev/null 2>&1 &;;
   esac
