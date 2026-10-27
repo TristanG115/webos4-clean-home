@@ -1,0 +1,15 @@
+loaded.mem_free_mb=35
+loaded.mem_avail_mb=178
+loaded.swap_used_mb=199
+loaded.swappiness=20
+launch_to_painted_ms=2870
+   running after 2nd launch: 0
+launch_to_painted_ms=1250
+   running after 2nd launch: 0
+launch_to_painted_ms=1270
+   running after 2nd launch: 0
+launch_to_painted_ms=1139
+   running after 2nd launch: 0
+launch_to_painted_ms=1120
+   running after 2nd launch: 0
+loaded.swap_pages_in_during=1349 out=5984

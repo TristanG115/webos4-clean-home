@@ -198,3 +198,16 @@ Where the time went (`tools/settings-latency.sh`, key-to-visible 1.2-2.3 s idle,
 Bugs found and fixed on the way: **boot-time apply never worked**: `debloat.sh apply` (which includes qspatch) runs before `home-on.sh`, but `qspatch` waited for the launcher to report ready, so it always rolled back, and after a failed rollback it rebooted without leaving its "tried" mark, which made a boot loop (it ran 3 boots until I stopped it by hand; the crash-loop guard would have ended it at the 4th with `DISABLE`). Boot mode no longer waits for the launcher. The `compositor` object does **not** exist in `systemUi.js` (ReferenceError): the Round 7c pointer lines in that script never did anything; only the "swallow CursorShow" return value ran.
 
 Pointer, tested properly this time (a probe inside the QML file `StarfishKeyFilter.qml`): `compositor.cursorVisible` is **read-only** ("Cannot assign to read-only property") and `compositor.mouseEventEnabled` is already false and does not gate the Magic Remote pointer. The compositor object offers `setEnableCursorChange`, `setMouseFocus`, `updateCursorFocus`, `mouseEventEnabled`; none hides the arrow. The pointer part was removed from the patch. Remaining leads are in docs/AUDIT.md.
+
+### 8c: Back-button history options and the optional background-app closer
+
+| What | Where / command | Undo |
+|---|---|---|
+| Back history is wiped when the screensaver starts (ours: the page tells `/api/history?v=saver`; LG's own: `lastapp.sh` sees `com.webos.app.screensaver*` in front) so the TV feels freshly turned on; options in Settings -> Remote & pointer: "Forget where I was" (never / screensaver / screensaver or TV off, default screensaver), "Forget apps I left a while ago" (never / 5 min ... 4 h), "How many steps Back can go" (1-8) | `tv/lastapp.sh` (entries are now `id epoch`, `clear`, `why`, `conf`, state in `state/back.conf`), `api.sh` `/api/history`, `/api/gear` returns `back`, `app.js` | set "Forget where I was" to Never, or delete `state/back.conf` |
+| "Close apps I left on Home after" 10 min .. 3 h (default **never**): a streaming app that stayed in the background that long is closed (frees its memory, Netflix about 125 MB); LG's apps (`com.webos.*`, `com.palm.*`), inputs, Home, Settings and the app on screen are never touched; checked every 2 minutes | `lastapp.sh reap`, `state/back.conf` `closeidle` | set it to Never |
+
+Verified on the TV with real apps: options and expiry logic (all cases printed), `why saver|standby`, bad values rejected, a real "history cleared (saver)" line when the owner's screensaver started, `closeidle=1` closed Netflix after one minute and left HDMI 2, Home and the foreground app alone. NOT verified: the standby trigger (the power state reports `Active`; the standby values are guessed from the names), the physical gear key.
+
+### 8d: boot test of the patched compositor
+
+Rebooted the TV twice: first boot correctly **refused** a build that had not been proven on a running TV (`qspatch: this build was never proven ...`), after proving it live the second boot applied it at 66 s uptime (7 s), launcher ready at 83 s, boot counter reset, `tools/check.sh` and `tools/keys-test.sh` pass. Compositor memory with LG's quick panel no longer pre-loaded: 56.6 / 56.7 MB (stock, two restarts) vs 52.6 MB (patched), `results/r8-compositor-ab.txt`.
