@@ -1,6 +1,6 @@
 #!/bin/sh
 # debloat.sh apply|undo|status|state|sweep [item ...]
-#   items: hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates qspatch vmtune   (catalog: services.tsv)
+#   items: hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates cursorclear qspatch vmtune   (catalog: services.tsv)
 #   apply   with no items = every item that is switched ON in state/svc.conf (defaults from services.tsv)
 #   state   machine-readable "id active" lines (used by the Settings screen)
 #   sweep   re-apply whatever LG may have started again (cheap and idempotent; run at boot for 5 minutes and every few minutes after)
@@ -10,7 +10,7 @@
 ACTION=${1:-status}; [ $# -gt 0 ] && shift
 # revert.sh (and the crash-loop guard) create DISABLE: nothing may be switched on again behind their back (the boot sweep and the Home watchdog run `sweep` for minutes)
 case $ACTION in apply|sweep) [ -e "$D/DISABLE" ] && { echo "DISABLE flag present: not applying"; exit 0; };; esac
-ALL="hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates qspatch vmtune"
+ALL="hosts remotelogger nudge contentminer admanager lgsettings voice iot preload idleapps epg updates cursorclear qspatch vmtune"
 CONF=$STATE/svc.conf; CATALOG=$D/services.tsv
 
 # --- which items are switched on ---------------------------------------------------------------------------------------
@@ -158,6 +158,16 @@ do_qspatch() {
     status) echo "qspatch: $(sh "$D/qspatch.sh" status)";;
   esac
 }
+# cursorclear: the Magic Remote pointer is drawn from LG's pictures in /usr/share/im; a RAM copy with transparent pictures is bind-mounted over that folder (see cursorclear.sh). Applied BEFORE qspatch so the
+# compositor restart that qspatch does at boot already loads the transparent pictures; switching it on later needs a compositor restart (or reboot) before the compositor loads them.
+do_cursorclear() {
+  case $ACTION in
+    apply) echo "cursorclear: $(sh "$D/cursorclear.sh" on)";;
+    sweep) is_mounted /usr/share/im || sh "$D/cursorclear.sh" on >/dev/null;;
+    undo)  sh "$D/cursorclear.sh" off; echo "cursorclear: off";;
+    status) echo "cursorclear: $(sh "$D/cursorclear.sh" status)";;
+  esac
+}
 # vmtune: the kernel swaps into LG's swap device (dm-linear: 600 MB of zram = compressed RAM first, then a small encrypted eMMC partition) with vm.swappiness=100 (it prefers swapping program memory over dropping cache). 20 keeps the
 # running apps in RAM: measured on the dev TV for the same usage cycle, 42 % fewer swap-ins, 38 % fewer swap-outs, 41 % fewer major faults (results/r8-swappiness.txt).
 # Runtime only (/proc/sys), the original value is kept in state/vm.orig and a reboot is stock.
@@ -200,6 +210,7 @@ active_of() {
     epg) svc_running iepg && echo 0 || echo 1;;
     updates) upd_hosts_present && ! svc_running update && echo 1 || echo 0;;
     qspatch) is_mounted /usr/lib/qt5/qml/KeyFilters/appLaunch.js && echo 1 || echo 0;;
+    cursorclear) is_mounted /usr/share/im && echo 1 || echo 0;;
     vmtune) [ "$(cat /proc/sys/vm/swappiness)" = "$VM_SWAPPINESS" ] && echo 1 || echo 0;;
   esac
 }
@@ -217,6 +228,7 @@ for i in $ITEMS; do
     idleapps) do_idleapps;;
     epg) do_epg;;
     updates) do_updates;;
+    cursorclear) do_cursorclear;;
     qspatch) do_qspatch;;
     vmtune) do_vmtune;;
     *) echo "unknown item: $i";;
