@@ -15,14 +15,15 @@
 #   closeidle 0 | N  (default 120)                        close a streaming app that has been sitting in the background for N minutes (0 = never; frees its memory, about 125 MB for
 #                                           Netflix; it also stops music that plays in the background, so it is off by default). LG's own apps, inputs and Home are never closed.
 . /media/developer/tv-debloat/common.sh
-PIDF=/tmp/lastapp.pid; PIDP=/tmp/lastapp-power.pid; PIDR=/tmp/lastapp-reap.pid; LEFT=/tmp/appleft; STK=/tmp/appstack; OUT=/tmp/lastapp; BC=$STATE/back.conf
+PIDF=/tmp/lastapp.pid; PIDP=/tmp/lastapp-power.pid; PIDR=/tmp/lastapp-reap.pid; PIDS=/tmp/lastapp-saver.pid; LEFT=/tmp/appleft; STK=/tmp/appstack; OUT=/tmp/lastapp; BC=$STATE/back.conf
 alive() { [ -f $PIDF ] && kill -0 "$(cat $PIDF 2>/dev/null)" 2>/dev/null; }
 bconf() { v=$(sed -n "s/^$1=//p" $BC 2>/dev/null | tail -1); echo "${v:-$2}"; }
 stop() {
   [ -f $PIDF ] && kill "$(cat $PIDF)" 2>/dev/null; rm -f $PIDF
   [ -f $PIDP ] && kill "$(cat $PIDP)" 2>/dev/null; rm -f $PIDP
   [ -f $PIDR ] && kill "$(cat $PIDR)" 2>/dev/null; rm -f $PIDR
-  for p in $(pgrep -f "luna-send -i luna://com.webos.applicationManager/getForegroundAppInfo") $(pgrep -f "luna-send -i luna://com.webos.service.tvpower/power/getPowerState"); do kill "$p" 2>/dev/null; done
+  [ -f $PIDS ] && kill "$(cat $PIDS)" 2>/dev/null; rm -f $PIDS
+  for p in $(pgrep -f "luna-send -i luna://com.webos.applicationManager/getForegroundAppInfo") $(pgrep -f "luna-send -i luna://com.webos.service.tvpower/power/getPowerState") $(pgrep -f "luna-send -i luna://com.webos.applicationManager/running"); do kill "$p" 2>/dev/null; done
 }
 running_ids() { lun luna://com.webos.applicationManager/running '{}' | tr -d '\n ' | grep -o '"id":"[^"]*"' | sed 's/"id":"\(.*\)"/\1/'; }
 # newest first, without the entries that are too old (forget)
@@ -89,6 +90,12 @@ log "lastapp: tracking the foreground app"
 echo $! > $PIDP
 ( while :; do sleep 120; sh "$0" reap; done ) </dev/null >/dev/null 2>&1 &
 echo $! > $PIDR
+# LG's own screensaver (no signal on an input): SAM's list of running apps names it while it exists, so the swap for ours does not depend on /var/log/messages (settings-hook.sh watches that too,
+# but the log is tiny, rotates and sometimes does not exist). saver-take.sh ignores repeats within 10 s and closes LG's saver, which removes it from the list.
+( luna-send -i luna://com.webos.applicationManager/running '{"subscribe":true}' </dev/null 2>/dev/null | while read -r l; do
+    case "$l" in *'"id":"com.webos.app.screensaver"'*) [ -e "$D/DISABLE" ] || sh "$D/saver-take.sh";; esac
+  done ) </dev/null >/dev/null 2>&1 &
+echo $! > $PIDS
 prev=""
 # input apps that are already running in the background when this starts (after a boot or a restart of this script) count as "left just now"
 for id in $(running_ids | grep -E '^com\.webos\.app\.hdmi[0-9]'); do grep -q "^$id " $LEFT 2>/dev/null || echo "$id $(date +%s)" >> $LEFT; done
