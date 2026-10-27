@@ -148,6 +148,8 @@ Leads that are left (all need the remote awake, so they could not be tested alon
 2. A grab-and-re-emit evdev proxy that drops the pointer axes: kernel releases a grab when the process dies, but the Magic Remote's keys share those devices, so a bug could leave the remote dead (ssh and the phone page would remain). Not built.
 3. Not recommended: `enableMrcu` / `activateMrcu` (they disable the whole remote), injecting into lginput2 like cleanyourtv-WebOS does (their issue 23: it broke HDMI-CEC / eARC).
 
+**Update (round 10):** lead 2 was probed and is dead: the compositor opens its input devices once at start and ignores a device created later, so a proxy cannot feed it. What was found instead: the arrow is drawn from `/usr/share/im/cursorType*.png`; a RAM copy with transparent pictures is now bind-mounted over that folder (`tv/cursorclear.sh`, debloat item `cursorclear`). No input interception, no restart risk beyond the compositor restart the patch already does. Needs the owner's confirmation with the real remote (see CHANGES.md round 10).
+
 ### 7.4 Bugs the tests found (all fixed)
 
 * Boot-time apply of the compositor patch never worked (waited for a launcher that starts later) and a failed rollback could reboot-loop.

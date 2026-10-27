@@ -178,6 +178,14 @@ Facts verified on webOS 4.5 (re-verify on other versions):
 - **LG's input picker and Guide / Live Menu** are launched from `KeyFilters/appLaunch.js` (`systemUIManager /launch quickinputpicker` in two places, `livemenu` in two places): the patch swaps them for our `inputs.html` overlay (`tvdOpenOverlay`). Physical keys untested.
 - **Memory**: `eswap` = zram0 (600 MB) + ~100 MB eMMC; the biggest recoverable RAM is idle apps: an HDMI input app 57 MB (reopens in 0.75 s), YouTube 83 MB, Netflix 125 MB. WAM has `pauseApp` but no show / resume: a hidden page cannot be re-shown.
 
+### Round 10 facts (verified on the dev TV, webOS 4.5)
+
+- **The pointer arrow is a picture**: `/usr/share/im/cursorType*.png` (255 files, 16 sizes; read-only squashfs). `tv/cursorclear.sh` bind-mounts a RAM copy with transparent PNGs of the same sizes over `/usr/share/im` (debloat item `cursorclear`, applied before `qspatch`). The TV's Python has NO `zlib`: `cursorclear.py` gets a deflate stream from BusyBox `gzip` and wraps it. Whether the compositor loads the pictures at start or on demand is UNKNOWN (the remote was asleep); if the arrow ever shows again, restart the compositor (`qspatch.sh reapply` does it safely) and check `mount | grep /usr/share/im`.
+- **The compositor does not hot-plug input devices**: `surface-manager-starfish` holds `/dev/input/event0-5` (and `/dev/uinput`) from its start and did not open a clone device created later. An evdev grab-and-clone proxy therefore cannot work (the remote would be dead). `lginput2` owns three uinput devices (fds 6-8).
+- **SAM's `running` subscription** (`luna-send -i luna://com.webos.applicationManager/running '{"subscribe":true}'`) emits one JSON line per change and lists `{"id":"com.webos.app.screensaver",...,"appType":"native_qml"}` only while LG's saver exists: used by `lastapp.sh` as a log-independent trigger for `saver-take.sh`. LG's saver app is a full QML app with an ad player (`Containers/AdImageView.qml`); `general.noSignalScreenSaver` (`on`) decides whether it starts on a no-signal input, `general.screenSaverEnabled` is off.
+- **Boot trap**: after a failed or rolled-back boot-time `qspatch`, the next boots skip it ("this build was never proven on a running TV") until `sh qspatch.sh apply` is run once from a running TV. Check `sh qspatch.sh status` after any unexpected reboot: Settings / Input / Guide keys are stock while it says `off`.
+- `mrcu` exposes `getConnectionStatus` (works with the remote asleep: `connected:false`); use it to know whether any mrcu experiment can answer.
+
 ## 6. Safety net (and how to prove it)
 
 | Layer | What | Test |

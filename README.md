@@ -101,7 +101,7 @@ Full report: **[docs/AUDIT.md](docs/AUDIT.md)**. The short version:
 * **Performance:** memory is the limit; the Home renderer grows from 87 to about 150 MB over hours (a reload on wake would save 60 MB); HDMI input apps stay resident (45 MB each); `/etc/hosts` with 4.4k names costs about 6 ms per lookup.
 * **Safety/security:** Telnet (port 23) is open with no password on the LAN (your deliberate way back; turn it off once you trust SSH); LG's DevTools port 9998 listens on all interfaces; our own LAN API is token-protected; firmware updates cannot be switched on from any screen; the TV-tuner OTA update path cannot be stopped from here (do not connect an antenna if you care).
 * **The remote:** the pointer is drawn by the compositor and woken by the scroll wheel; all remote buttons and the pointer share the same input devices, so it cannot be filtered without risking the remote. The documented attempts and the evdev key-injection trick (used by `tools/keys-test.sh`) are written down so nobody repeats them.
-* **The Magic Remote pointer cannot be hidden from the compositor**: its visibility flag is read-only there. What was tried and the leads left are in [the audit](docs/AUDIT.md#7-round-8-snappiness-memory-and-what-the-compositor-will-not-let-us-do-2026-10-27).
+* **The Magic Remote pointer** is now drawn with fully transparent pictures (a RAM copy bind-mounted over LG's `/usr/share/im`; switch *Make the Magic Remote pointer invisible* in Services & privacy; to be confirmed on the real remote). Its visibility flag is read-only in the compositor. What was tried and the leads left are in [the audit](docs/AUDIT.md#7-round-8-snappiness-memory-and-what-the-compositor-will-not-let-us-do-2026-10-27).
 * **Backlog (17 ideas ranked by value/effort):** health page, recent apps row, input names, phone-as-remote, settings backup/restore, self-update, notifications API, night dimming with real backlight control, systemd port, translations, and more.
 
 ## How it works
@@ -184,6 +184,6 @@ Written for webOS 4.x (Chromium 53). On other 4.x sets the Home app id (`com.web
 expose keys that were verified on this TV; invalid values are rejected by LG and shown as a toast. webOS 5+ (systemd) needs the `systemctl` variants of the stop commands (AGENTS.md section 8). Other models: untested.
 
 ## Only a human with the remote can check
-Back key **on Home** and **inside apps** with the physical remote (tested with injected events only); the pointer switch (does the scroll wheel still show an arrow?); an app update really installing; Home key from inside an app;
+Back key **on Home** and **inside apps** with the physical remote (tested with injected events only); the invisible pointer (shake the remote and turn the wheel: is there still any arrow, even for a split second?); an app update really installing; Home key from inside an app;
 magic-remote click; wake from standby; the phone page on your own phone (tested with a headless desktop browser acting as a phone); the rootless IPK on a real TV; `install.sh` end to end on a clean TV.
 If anything feels wrong: `./revert.sh`.
