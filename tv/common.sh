@@ -58,5 +58,12 @@ ensure_settings_html() {
     sed 's#<script src="app.js">#<script>window.__MODE__="settings"</script><script src="app.js">#; s#<title>Home</title>#<title>Settings</title>#' "$D/launcher/index.html" > "$f.new" && mv "$f.new" "$f"
   fi
 }
+# the WAM appDesc of our Settings overlay as ONE JSON line (settings-open.sh sends it from the shell, qspatch.sh bakes it into the compositor patch)
+settings_appdesc() {
+  DIR=$(launcher_dir); [ "$DIR" = "$D/launcher" ] && ensure_settings_html
+  printf '{"id":"%s","version":"1.0.0","vendor":"tv-debloat","type":"web","main":"settings.html","title":"Settings","visible":false,"transparent":true,"bgColor":"#00000000","disableBackHistoryAPI":true,"lockable":false,"supportQuickStart":false,"defaultWindowType":"overlay","trustLevel":"trusted","folderPath":"%s"' "$SET_ID" "$DIR"
+  [ -e "$D/DEBUG" ] && printf ',"inspectable":true'
+  printf '}'
+}
 # lgsettings.allow holds the uptime (seconds) until which LG's own Settings app may be opened without being redirected to ours
 lg_settings_allowed() { a=$(cat "$STATE/lgsettings.allow" 2>/dev/null); [ -n "$a" ] && [ "$(cut -d. -f1 /proc/uptime)" -lt "$a" ]; }

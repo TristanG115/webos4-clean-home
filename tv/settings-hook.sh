@@ -35,6 +35,14 @@ tail -F "$LOG" 2>/dev/null | awk '
     KEY)  [ $((now - last)) -lt 2 ] && continue
           api_ok || { log "settings-hook: API down, leaving LG's panel alone"; continue; }
           last=$now; echo $now > /tmp/gear-claim
+          if grep -q tvdOpenSettings /usr/lib/qt5/qml/KeyFilters/appLaunch.js 2>/dev/null; then
+            # the patched compositor (qspatch.sh) opens / closes Settings itself the moment the key arrives and tells the API ("claim"); step in only when it did not
+            ( sleep 2; c=$(cut -d. -f1 /tmp/qs-claim 2>/dev/null)
+              [ -n "$c" ] && [ "$c" -ge $((now - 2)) ] && exit 0
+              log "settings-hook: the compositor did not open Settings, doing it from the hook"
+              if [ -e /tmp/set-vis ]; then sh "$D/settings-open.sh" close; else sh "$D/settings-open.sh" launch; fi ) </dev/null >/dev/null 2>&1 &
+            continue
+          fi
           if [ -e /tmp/set-vis ]; then sh "$D/settings-open.sh" close >/dev/null 2>&1 &
           else sh "$D/settings-open.sh" launch >/dev/null 2>&1 & fi;;
     QS)   lun luna://com.webos.service.systemUIManager/closeByAppId '{"appId":"com.webos.app.quicksettings"}' >/dev/null &

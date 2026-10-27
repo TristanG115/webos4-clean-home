@@ -2,6 +2,7 @@
    Two modes share this file: Home (index.html) and the Settings overlay (settings.html, opened by the remote's Settings key). */
 (function(){
 'use strict';
+var T0 = Date.now();
 
 /* ================= configuration & settings ================= */
 var API = 'http://127.0.0.1:8765';
@@ -331,7 +332,7 @@ function saverStart(){
   var withPhotos = S.saver.photos && photos.length > 0;
   $('saver').className = 'on' + (withPhotos ? '' : ' nophoto');
   $('sdim').style.opacity = ((S.saver.dim === undefined ? 30 : S.saver.dim) / 100);
-  blDim();
+  blDim(); api('/api/history?v=saver', noop);      // Back forgets where you were, if the options say so
   $('scrimS').style.display = withPhotos ? 'block' : 'none';
   if (withPhotos) { pIx = (bgIx + 1) % photos.length; showNext(); } else { drift(); }
   dlog('saver on photos=' + withPhotos);
@@ -403,7 +404,13 @@ function keypadKey(k, e){
 
 /* ================= QR / phone link ================= */
 var qrPoll = null;
-function qrOpen(){
+// qr.js (57 KB) is only needed for the phone-link QR code: load it then, not at every start of Home and Settings
+function withQr(cb){
+  if (typeof qrcode === 'function') return cb();
+  var s = document.createElement('script'); s.src = 'qr.js'; s.onload = cb; s.onerror = function(){ toast('QR failed'); }; document.head.appendChild(s);
+}
+function qrOpen(){ withQr(qrOpen2); }
+function qrOpen2(){
   api('/api/info', function(err, j){
     if (err || !j || !j.ip) { toast('Could not read the TV address'); return; }
     var url = MOCK ? 'http://10.0.0.63:8765/?t=demo' : 'http://' + j.ip + ':' + j.port + '/?t=' + j.token;
@@ -459,6 +466,8 @@ var ICON = {
   access: '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M5 9l7 1.5L19 9M12 10.5V15l-3 5.5M12 15l3 5.5"/></svg>'
 };
 function tgl(label, desc, get, set){ return {type: 'toggle', label: label, desc: desc, get: get, set: set}; }
+// Back-button history options live on the TV (lastapp.sh, state/back.conf); the Remote page's data object holds the current values
+function backOpt(k, v){ var d = cats[catIdx].data = cats[catIdx].data || {}; d.back = d.back || {}; d.back[k] = (k === 'reset') ? v : parseInt(v, 10); api('/api/history?k=' + k + '&n=' + v, function(){ toast('Saved'); }); }
 function chc(label, desc, opts, get, set){ return {type: 'choice', label: label, desc: desc, opts: opts, get: get, set: set}; }
 function sld(label, desc, min, max, step, get, set){ return {type: 'slider', label: label, desc: desc, min: min, max: max, step: step, get: get, set: set}; }
 function inf(label, value, desc){ return {type: 'info', label: label, value: value, desc: desc}; }
@@ -593,6 +602,9 @@ cats = [
     lg: [['option', ['pointerSpeed','pointerSize','pointerShape','pointerAlignment']], ['other', ['cursorAutoRemover']]], build: function(){ var self = this; return [
     chc('Settings button opens', 'The gear button on the remote', [['ours','This Settings screen'],['lg','LG’s quick panel']], function(){ return (self.data && self.data.gear) || 'ours'; }, function(v){ self.data = self.data || {}; self.data.gear = v; api('/api/gear?v=' + v, function(){ toast(v === 'ours' ? 'The Settings button now opens this screen' : 'The Settings button opens LG’s panel again'); }); }),
     tgl('Back from an app returns to the previous app', 'When an app quits on Back, open the app or input you were in before it. With nothing before it you land on Home, as usual.', function(){ return !(self.data && self.data.chain === 'off'); }, function(b){ self.data = self.data || {}; self.data.chain = b ? 'on' : 'off'; api('/api/backchain?v=' + (b ? 'on' : 'off'), function(){ toast(b ? 'Back now returns to the previous app' : 'Back from an app goes to Home again'); }); }),
+    chc('Forget where I was', 'The Back button can take you back to the apps and inputs you used. Choose when that memory is wiped, so the TV feels freshly turned on.', [['never','Never'],['saver','When the screensaver starts'],['saver_standby','Screensaver or TV off']], function(){ return (self.data && self.data.back && self.data.back.reset) || 'saver'; }, function(v){ backOpt('reset', v); }),
+    chc('Forget apps I left a while ago', 'Apps and inputs you left longer ago than this are skipped by Back.', [['0','Never'],['5','5 minutes'],['15','15 minutes'],['30','30 minutes'],['60','1 hour'],['240','4 hours']], function(){ return String((self.data && self.data.back && self.data.back.forget) || 0); }, function(v){ backOpt('forget', v); }),
+    chc('How many steps Back can go', 'How far back Back can walk through the apps you used.', [['1','1'],['2','2'],['3','3'],['5','5'],['8','8']], function(){ return String((self.data && self.data.back && self.data.back.depth) || 8); }, function(v){ backOpt('depth', v); }),
     tgl('Pointer only when I shake the remote', 'Experimental. Asks the Magic Remote to show the arrow only after a shake, not on every movement. Applied again by itself each time the remote wakes up. Press a button on the remote first, then switch this on.', function(){ return !!(self.data && self.data.pointer === 'off'); }, function(b){ self.data = self.data || {}; self.data.pointer = b ? 'off' : 'on'; api('/api/pointer?v=' + (b ? 'off' : 'on'), function(err, j){ toast((j && j.msg) || (err ? 'Could not reach the TV' : 'Done')); }, 25000); }),
     tgl('Hide the pointer on Home and in Settings', 'Asks the browser not to draw an arrow on Home and in Settings. LG draws its own pointer on top, so it may still appear.', function(){ return !!S.ui.hideCursor; }, function(b){ setPath('ui.hideCursor', b); }),
     head('LG pointer options'),
@@ -957,7 +969,10 @@ if (SETMODE) {
   document.documentElement.className = 'mode-settings'; cls(document.body, 'mode-settings', true);
   tick();
   loadSettings(function(){ refreshPhotos(function(){ if (settingsOn && cats[catIdx].id === 'gallery') renderCat(false); }); });
-  openSettings();
+  openSettings(); var T1 = Date.now();
+  // the Settings key while we are open: WebAppMgr launches the running page again and tells it so (webOSRelaunch) -> close (not in the first 1.5 s, in case the first launch sends one too)
+  var setAt = Date.now(); document.addEventListener('webOSRelaunch', function(){ if (Date.now() - setAt > 1500) closeSettings(); });
+  requestAnimationFrame(function(){ requestAnimationFrame(function(){ var t = window.performance && performance.timing || {}, n = t.navigationStart || 0; api('/api/qs?m=settings-painted_nav=' + (Date.now() - n) + '_dom=' + (t.domContentLoadedEventEnd - n) + '_load=' + (t.loadEventEnd - n) + '_resp=' + (t.responseEnd - n) + '_dl=' + (t.domLoading - n) + '_script=' + (t.domInteractive - n) + '_js0=' + (T0 - n) + '_js1=' + (T1 - n), noop); }); });     // first frame is on screen: lets the TV log how long the key took
   if (MOCK && /settings=(\w+)/.test(location.search)) setTimeout(function(){ for (var i = 0; i < cats.length; i++) if (cats[i].id === /settings=(\w+)/.exec(location.search)[1]) { catIdx = i; } catClass(); openPane(); if (/row=(\d+)/.test(location.search)) sFocus(parseInt(/row=(\d+)/.exec(location.search)[1], 10), 0); }, 1200);
 } else {
   document.addEventListener('visibilitychange', function(){ if (document.hidden) onHide(); else { if (!settingsOn) focusItem(1, 0); onShow(); } });

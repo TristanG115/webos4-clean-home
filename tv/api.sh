@@ -138,6 +138,10 @@ case "$P" in
                   hold) sh "$D/backlight.sh" hold </dev/null >/dev/null 2>&1;;
                   restore) timeout -t 15 sh "$D/backlight.sh" restore </dev/null >/dev/null 2>&1;; esac
                 hdr "200 OK"; printf '{"backlight":"%s"}' "$(sh "$D/backlight.sh" status | cut -d' ' -f1)";;
+  /api/history) # Back-button history (lastapp.sh): v=clear | saver | standby forget it (the options decide for saver / standby); k+v set an option; no args = the options
+                case "$(qget v)" in clear) sh "$D/lastapp.sh" clear page;; saver|standby) sh "$D/lastapp.sh" why "$(qget v)";; esac
+                [ -n "$(qget k)" ] && sh "$D/lastapp.sh" conf "$(qget k)" "$(qget n)"
+                hdr "200 OK"; sh "$D/lastapp.sh" conf;;
   /api/backchain) case "$(qget v)" in off) touch "$STATE/backchain-off";; on) rm -f "$STATE/backchain-off";; esac
                 hdr "200 OK"; [ -e "$STATE/backchain-off" ] && echo '{"chain":"off"}' || echo '{"chain":"on"}';;
   /api/pointer) case "$(qget v)" in off|on) m=$(timeout -t 20 sh "$D/pointer.sh" "$(qget v)" </dev/null 2>/dev/null | head -1 | tr -d '"\\');; *) m="";; esac
@@ -171,9 +175,18 @@ case "$P" in
                 hdr "200 OK"; LW=10000 lun luna://com.webos.applicationManager/launch '{"id":"com.palm.app.settings","params":{}}';;
   /api/settings/close) hdr "200 OK"; echo '{"ok":true}'; ( usleep 300000; sh "$D/settings-open.sh" close ) </dev/null >/dev/null 2>&1 &
                 ;;
-  /api/settings/open) hdr "200 OK"; sh "$D/settings-open.sh" open >/dev/null 2>&1; echo '{"ok":true}';;
+  /api/settings/launch) hdr "200 OK"; ( sh "$D/settings-open.sh" launch </dev/null >/dev/null 2>&1 & ); echo '{"ok":true}';;
+  /api/qs)      # the patched compositor reports in (qspatch.sh): e=claim = "I opened / closed Settings myself", e=fail = it could not, anything else is just logged
+                m=$(qget m | sed 's/%20/ /g; s/%3D/=/g' | tr -c 'A-Za-z0-9 _.:=,-' '?' | cut -c1-120)
+                case "$(qget e)" in claim) up > /tmp/qs-claim;; loaded) touch "/tmp/qs-loaded-$(qget m | tr -cd 'A-Za-z')"; q=$(qget q | sed 's/%20/ /g; s/%3D/=/g' | tr -c 'A-Za-z0-9 _.:=,-' '?' | cut -c1-120); [ -n "$q" ] && log "qs: $q";; fail) log "qs: compositor launch failed: $m";; *) [ -n "$m" ] && log "qs: $m";; esac
+                hdr "200 OK"; echo '{"ok":true}';;
+  /api/qsdump)  # what the patched compositor found out about itself (kept in /tmp, read by hand)
+                body_small 65536; n=$(qget n | tr -cd 'A-Za-z0-9_' | cut -c1-30); k=$(qget k | tr -cd '0-9' | cut -c1-4)
+                if [ -n "$n" ] && [ -n "$k" ]; then printf '%s' "$(qget d)" > "/tmp/qs-dump-$n.$k"; elif [ -n "$n" ]; then printf '%s\n' "$BODY" > "/tmp/qs-dump-$n.txt"; fi
+                hdr "200 OK"; echo '{"ok":true}';;
+  /api/settings/open)hdr "200 OK"; sh "$D/settings-open.sh" open >/dev/null 2>&1; echo '{"ok":true}';;
   /api/gear)    if [ "$(qget v)" = lg ]; then touch "$STATE/gear-lg"; elif [ "$(qget v)" = ours ]; then rm -f "$STATE/gear-lg"; fi
-                hdr "200 OK"; printf '{"gear":"%s","pointer":"%s","chain":"%s"}' "$([ -e "$STATE/gear-lg" ] && echo lg || echo ours)" "$([ -e "$STATE/pointer-off" ] && echo off || echo on)" "$([ -e "$STATE/backchain-off" ] && echo off || echo on)";;
+                hdr "200 OK"; printf '{"gear":"%s","pointer":"%s","chain":"%s","back":%s}' "$([ -e "$STATE/gear-lg" ] && echo lg || echo ours)" "$([ -e "$STATE/pointer-off" ] && echo off || echo on)" "$([ -e "$STATE/backchain-off" ] && echo off || echo on)" "$(sh "$D/lastapp.sh" conf)";;
   /api/svc)     hdr "200 OK"; svc_json;;
   /api/svc/set) svc_set;;
   /api/guard)   hdr "200 OK"; timeout -t 60 sh "$D/debloat.sh" sweep </dev/null >/dev/null 2>&1; echo '{"ok":true}';;

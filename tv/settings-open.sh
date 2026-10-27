@@ -5,10 +5,7 @@
 is_open() { lun luna://com.webos.applicationManager/getForegroundAppInfo '{}' | grep -q "\"appId\": *\"$SET_ID\"" ||
             lun luna://com.webos.applicationManager/getForegroundAppInfo '{"extraInfo":true}' | grep -q "\"appId\": *\"$SET_ID\""; }
 do_open() {
-  DIR=$(launcher_dir); [ "$DIR" = "$D/launcher" ] && ensure_settings_html
-  APP="{\"id\":\"$SET_ID\",\"version\":\"1.0.0\",\"vendor\":\"tv-debloat\",\"type\":\"web\",\"main\":\"settings.html\",\"title\":\"Settings\",\"visible\":false,\"transparent\":true,\"bgColor\":\"#00000000\",\"disableBackHistoryAPI\":true,\"lockable\":false,\"supportQuickStart\":false,\"defaultWindowType\":\"overlay\",\"trustLevel\":\"trusted\",\"folderPath\":\"$DIR\""
-  [ -e "$D/DEBUG" ] && APP="$APP,\"inspectable\":true"
-  APP="$APP}"
+  APP=$(settings_appdesc); DIR=$(launcher_dir)
   r=$(LW=8000 lun luna://com.palm.webappmanager/launchApp "{\"appDesc\":$APP,\"parameters\":{},\"launchingAppId\":\"\",\"launchingProcId\":\"\",\"instanceId\":\"tv-debloat-settings\"}" | tr -d '\n')
   case $r in *'"returnValue": *true'*|*true*) log "settings overlay opened ($DIR)";; *) log "settings overlay refused: $(echo "$r" | cut -c1-160)";; esac
   echo "$r"
